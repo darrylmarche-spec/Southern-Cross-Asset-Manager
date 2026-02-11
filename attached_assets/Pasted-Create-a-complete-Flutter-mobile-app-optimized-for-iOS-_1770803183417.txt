@@ -1,0 +1,235 @@
+Create a complete Flutter mobile app optimized for iOS devices (using Cupertino widgets for native iOS look and feel) that digitizes two Schindler checklists for escalators and moving walks: first, the “SCS Truss Large Overhaul Workflow” checklist (as a pre-commissioning workflow), followed by the “Commissioning Checklist” (document Q 43831124, Rev. 03). The app is for me and my team to track tasks across both checklists, fill in responses, add remarks, track durations/labor, and monitor progress. Use Flutter’s state management with Provider for simplicity. Store data locally with SQLite (via sqflite package) for multi-user sharing on the same device or across devices if synced manually; optionally integrate Firebase Realtime Database for real-time team collaboration if I add the config later.
+Key features:
+* User authentication: Simple login with usernames (e.g., “Darryl”, “TeamMember1”) and passwords stored in SQLite. Each user can view/edit their own checklists but see team progress.
+* Project creation: Screen to enter customer details (Customer, Project Name, Location, Commission Number, Type of Escalator/Moving Walk, Date of Completion).
+* Checklist navigation: Use a tabbed or accordion interface where the Overhaul Workflow appears first (as Section 0), followed by the Commissioning sections. All tasks are in sequence, but completed tasks disappear from the main screen and move to a separate “Completed” page accessible via a hot button in the navigation bar.
+* Task details: For each task (from both checklists):
+    * Display UID (if applicable), task name, description/reference (e.g., comments, r2c, SAIS refs).
+    * For Overhaul tasks: Fields for Estimated Duration (pre-filled), Estimated Labor (pre-filled), Actual Duration, Actual Labor, Comments (pre-filled but editable), Status (checkbox to mark complete), Assigned To (user dropdown), Due Date.
+    * For Commissioning tasks: Radio buttons or dropdown for responses: Yes, No, ✓ (positive), V (negative, record findings for correction, fails SAIS), O (negative, not part of SAIS), N/A. Plus text field for remarks, checkbox for completion.
+    * When marked complete, task moves to “Completed” page automatically.
+* Completed Page: Lists all completed tasks (from both checklists), sorted by completion date. Filters by section, user, date. “Print Report” button generates a printable/shareable PDF (use pdf package) with project details, tables of completed tasks (with all fields, totals for durations/labor summed), open items, remarks, and signatures section.
+* Progress tracking: Dashboard showing % complete per section/project, with color-coding (green for done, red for issues with V/O or overdue).
+* Export: Button to generate and share PDF of entire checklist status or just completed.
+* iOS-specific: Use CupertinoPageScaffold, CupertinoNavigationBar, adaptive scrolling, and safe area insets. Ensure it runs well on iPhone screens (test with iOS simulator if possible).
+* Error handling: Validate required fields, show alerts for incomplete items.
+* Database: SQLite tables for projects, users, tasks (columns: project_id, section, item_uid, name, description, est_duration, est_labor, act_duration, act_labor, response, remarks, status, assigned_to, due_date, completed_by, completed_at).
+Exact checklist structure (implement as data model in code, e.g., List of sections). Pre-populate with these items:
+1. Overhaul Workflow
+    * 0.1: Install Hoarding and Site Est (Est Duration: 8h, Est Labor: 2, Comments: It took Maz group longer, this time may be enough time)
+    * 0.2: Remove common Side Balustrade and Glass and fit Encapsulation side panel (16h, 2)
+    * 0.3: Remove platform Side Balustrade and Glass and fit Encapsulation side panel (16h, 2)
+    * 0.4: Complete Encapsulation and Temporary Common Decking (8h, 2)
+    * 0.5: Install Electrical and safety equipment (4h, 2)
+    * 0.6: Remove All Steps (8h, 2, Comments: have extra person when there is a lot of material movement, we should have extra person at the site)
+    * 0.7: Remove Combplate Assembly (8h, 2, Comments: extra person)
+    * 0.8: Remove Step Chains & Tracks (12h, 2, Comments: extra person)
+    * 0.9: Isolate escalator, set temporary wiring, Remove Esc Existing Wiring (8h, 2)
+    * 0.10: Setup Gantry (Top) (4h, 2)
+    * 0.11: Remove Bull Gear & Machine (8h, 2)
+    * 0.12: Clean Down Esc Truss (8h, 2)
+    * 0.13: Inspect Truss Fixation (2h, 2)
+    * 0.14: Install Fire Protection Within Truss (2h, 2)
+    * 0.15: Carryout Truss Inspection with Certified Engineer (2h, 1)
+    * 0.16: Prime and Paint Truss (8h, 2, Comments: as long as we do same as on first unit)
+    * 0.17: NEW MATERIAL REQUIRED material preparation (4h, 2)
+    * 0.18: Setup Alignment Jigs (8h, 2)
+    * 0.19: Set New Tracks (4h, 2)
+    * 0.20: Install New Bull Gear (4h, 2)
+    * 0.21: Install Control Drive System (8h, 2)
+    * 0.22: Install New Drive Machine (16h, 2)
+    * 0.23: Install Drive Chains & Covers (8h, 2)
+    * 0.24: Install Handrail Rollers (8h, 2)
+    * 0.25: Install glass tracks (16h, 2)
+    * 0.26: Install New Step Tracks (16h, 2)
+    * 0.27: Weld Step Track Joints (8h, 2)
+    * 0.28: Install New Electrical Cabling (32h, 2)
+    * 0.29: Complete Control System Wiring (16h, 2)
+    * 0.30: 10 Days notice of encapsulation removal (0h, 1)
+    * 0.31: Startup Machine (8h, 1)
+    * 0.32: Install Mid Section Chains (16h, 3)
+    * 0.33: Install New Combi Plate Assembly (8h, 2)
+    * 0.34: Line up Combiplates with Jg (8h, 2)
+    * 0.35: Install New Steps (12h, 2)
+    * 0.36: Install Skirting Curved Sections (6h, 2)
+    * 0.37: Install Safety equipment from encapsulation (12h, 2)
+    * 0.38: Remove Encapsulation on Platform Side (4h, 2)
+    * 0.39: Remove encapsulation on Platform Side (4h, 2)
+    * 0.40: Install handrail profiles (16h, 2)
+    * 0.41: Remove Encapsulation from common side and Install common Balustrade (8h, 2)
+    * 0.42: Install Handrails (16h, 2)
+    * 0.43: Install Inner Decking (16h, 2)
+    * 0.44: Install End Caps (8h, 2)
+    * 0.45: Install Hatch Plates (4h, 2)
+    * 0.46: 10 Day Notice to remove Hoardings (0h, 1)
+    * 0.47: Commission Esc (40h, 2)
+    * 0.48: SAIS Inspection (8h, 2)
+    * 0.49: Items (16h, 2)
+    * 0.50: Handover to Client (8h, 2)
+2. Preparation
+    * 1.1 Preparation - Top
+        * 1.1: Are the layout drawing, wiring diagram, owner documentation, logbook available on site in local language? (SAIS J46200195, 3.1)
+        * 1.2: Is the technical documentation available? (SAIS J46200195, 3.2)
+        * 1.3: Are the Factory Acceptance Test Reports available at ComDoc? (SAIS J46200195, 3.3)
+        * 1.4: Are the protective barriers correctly positioned? (SAIS J46200195, 4.1)
+        * 1.5: Is the building power supply (power and light supply cable) according to the specification? (SAIS J46200195, 4.2)
+        * 1.6: Is the lighting intensity at the landings ≥ 50 Lux? (SAIS J46200195, 4.3)
+        * 1.7: Is the building interface according to the regulations? (SAIS J46200195, 4.4, 4.5, 4.13-4.18, 4.23)
+        * 1.8: Are the floor covers correctly assembled? (SAIS J46200195, 4.28)
+        * 1.9: Is the pit access safe and the standing area sufficient? (SAIS J46200195, 6.8, 6.9)
+        * 1.10: Is the power supply according to the specifications? (SAIS J46200195, 6.16, 6.21)
+        * 1.11: Is the gap between the truss and structural support correct?
+        * 1.12: Are the cables in good conditions and well secured? (SAIS J46200195, 6.12)
+        * 1.13: Are the screws of the terminal blocks correctly tightened? (SAIS J46200195, 6.14)
+    * 1.2 Preparation - Overall
+        * Remove all inner decking profiles, clean & check for objects in guiding layer of handrail, clean & check for damage on surface of all steps/pallets.
+    * 1.3 Preparation - Bottom
+        * 1.14: Are the floor covers correctly assembled? (SAIS J46200195, 4.28)
+        * 1.15: Is the pit access safe and the standing area sufficient? (SAIS J46200195, 5.5, 5.6)
+        * 1.16: Is the gap between the truss and structural support correct?
+        * 1.17: Are the cables in good conditions and well secured? (SAIS J46200195, 5.9)
+        * 1.18: Are the screws of the terminal blocks correctly tightened? (SAIS J46200195, 5.11)
+        * 
+•  1.9: Is the pit access safe and the standing area sufficient? (SAIS J46200195, 6.8, 6.9)
+		•  1.10: Is the power supply according to the specifications? (SAIS J46200195, 6.16, 6.21)
+		•  1.11: Is the gap between the truss and structural support correct?
+		•  1.12: Are the cables in good conditions and well secured? (SAIS J46200195, 6.12)
+		•  1.13: Are the screws of the terminal blocks correctly tightened? (SAIS J46200195, 6.14)
+	•  1.2 Preparation - Overall
+		•  Remove all inner decking profiles, clean & check for objects in guiding layer of handrail, clean & check for damage on surface of all steps/pallets.
+	•  1.3 Preparation - Bottom
+		•  1.14: Are the floor covers correctly assembled? (SAIS J46200195, 4.28)
+		•  1.15: Is the pit access safe and the standing area sufficient? (SAIS J46200195, 5.5, 5.6)
+		•  1.16: Is the gap between the truss and structural support correct?
+		•  1.17: Are the cables in good conditions and well secured? (SAIS J46200195, 5.9)
+		•  1.18: Are the screws of the terminal blocks correctly tightened? (SAIS J46200195, 5.11)
+2.  First Run - Top
+	•  2.1: Is the start of the controller correct and RTC set? (SAIS J46200195, 5.12, 6.15)
+	•  2.2: Is the maintenance operating panel working? (SAIS J46200195, 6.25, 6.26)
+	•  2.3: Is the stop button inside the pit working? (SAIS J46200195, 6.4, 9.2)
+	•  2.4: Is the pit lighting working and sufficient? (SAIS J46200195, 6.3, 9.3)
+3.  Bottom Area
+	•  3.1: Is the maintenance operating panel working? (SAIS J46200195, 7.1)
+	•  3.2: Is the stop button inside the pit working? (SAIS J46200195, 5.4, 7.3)
+	•  3.3: Is the pit lighting working and sufficient? (SAIS J46200195, 5.3, 7.4)
+	•  3.4: Is the floor cover contact set correctly and working? (SAIS J46200195, 7.6)
+	•  3.5: Is the light barrier in the pit working? (SAIS J46200195, 5.7, 7.2)
+	•  3.6: Is the smoke detector working?
+	•  3.7: Is the water level gauge working?
+	•  3.8: Are the step/pallet chain tension contacts set correctly and working? (SAIS J46200195, 7.11)
+	•  3.9: Are all step/pallet chain roller in good conditions?
+	•  3.10: Are the step/pallet chains free of corrosion and dirt?
+	•  3.11: Are the step/pallet rollers and hooks in good conditions?
+	•  3.12: Are the tracks joints set correctly and tracks clean?
+	•  3.13: Are the oil collectors set correctly and clean?
+	•  3.14: Is the step/pallet monitor set correctly? (SAIS J46200195, 8.7)
+	•  3.15: Are the return tracks and tangential guides set correctly? (SAIS J46200195, 7.21)
+	•  3.16: Are the lateral guides and guide rails set correctly? (SAIS J46200195, 7.13)
+	•  3.17: Can the connection cover securely fastened to the frame? (SAIS J46200195, 7.25)
+	•  3.18: Is the gap combplate ⇔ connection cover correct? (SAIS J46200195, 5.1)
+	•  3.19: Is the gap combs ⇔ step/pallet correct? (SAIS J46200195, 7.15)
+	•  3.20: Is the lateral and vertical setting of the combplate correct? (SAIS J46200195, 7.16)
+	•  3.21: Is the combplate and contacts working? (SAIS J46200195, 7.17, 7.18)
+	•  3.22: Are the pictographs and type plate placed correctly? (SAIS J46200195, 4.19, 10.3.15)
+	•  3.23: Are the handrail entries set correctly and the contacts working? (SAIS J46200195, 7.12)
+	•  3.24: Are the handrail support rollers set correctly?
+	•  3.25: Are the handrail monitors set correctly?
+	•  3.26: Are the displacement contacts set correctly and working? (SAIS J46200195, 8.2)
+	•  3.27: Are the handrail antistatic brushes/metal rollers set correctly? (SAIS J46200195, 8.4)
+	•  3.28: Is the step upthrust contact set correctly and working? (SAIS J46200195, 8.3)
+	•  3.29: Are the skirt contacts set correctly and working? (SAIS J46200195, 8.1)
+	•  3.30: Are the relieving curves set correctly? (SAIS J46200195, 7.22)
+	•  3.31: Is the step level contact adjusted and working? (SAIS J46200195, 8.5)
+	•  3.32: Are the step/pallet antistatic brushes set correctly? (SAIS J46200195, 8.6)
+4.  Middle Section
+	•  4.1: Are the skirt contacts set correctly and working? (SAIS J46200195, 8.1)
+	•  4.2: Are the track joints set correctly and tracks are clean? (SAIS J46200195, 9.25)
+	•  4.3: Are the oil collectors set correctly and clean? (SAIS J46200195, 9.25)
+5.  Top Area
+	•  5.1: Is the floor cover contact set correctly and working? (SAIS J46200195, 9.23)
+	•  5.2: Is the light barrier in the pit working? (SAIS J46200195, 6.10, 9.1)
+	•  5.3: Is the smoke detector working?
+	•  5.4: Is the water level gauge working?
+	•  5.5: Are the oil collectors set correctly and clean?
+	•  5.6: Is the step/pallet monitor set correctly? (SAIS J46200195, 8.7)
+	•  5.7: Are the return tracks and tangential guides set correctly? (SAIS J46200195, 9.4)
+	•  5.8: Are the lateral guides and guide rails set correctly? (SAIS J46200195, 9.9)
+	•  5.9: Can the connection cover securely fastened to the frame? (SAIS J46200195, 9.26)
+	•  5.10: Is the gap combplate ⇔ connection cover correct? (SAIS J46200195, 6.1)
+	•  5.11: Is the gap combs ⇔ step/pallet correct? (SAIS J46200195, 9.8)
+	•  5.12: Is the lateral and vertical setting of the combplate correct? (SAIS J46200195, 9.10)
+	•  5.13: Is the combplate and contacts working? (SAIS J46200195, 9.11, 9.12)
+	•  5.14: Are the pictographs placed correctly? (SAIS J46200195, 4.19)
+	•  5.15: Are the handrail entries set correctly and contacts working? (SAIS J46200195, 9.6)
+	•  5.16: Are the handrail support rollers set correctly?
+	•  5.17: Is the step upthrust contact set correctly and working? (SAIS J46200195, 8.3)
+	•  5.18: Are the skirt contacts set correctly and working? (SAIS J46200195, 8.1)
+	•  5.19: Are the relieving curves set correctly? (SAIS J46200195, 9.5)
+	•  5.20: Is the step level contact set correctly and working? (SAIS J46200195, 8.5)
+	•  5.21: Are the step/pallet antistatic brushes set correctly? (SAIS J46200195, 8.6)
+	•  5.22: Are the oil application brushes set correctly?
+	•  5.23: Are all oil application brushes releasing oil?
+	•  5.24: Is the drive chain/belt set correctly? (SAIS J46200195, 9.13)
+	•  5.25: Is the initial setting of the drive marked permanently?
+	•  5.26: Is the initial lubrication of the drive chain executed?
+	•  5.27: Is the drive chain contact/sensor set correctly and working? (SAIS J46200195, 9.14)
+	•  5.28: Is the drive displacement contact set correctly and working? (SAIS J46200195, 9.31)
+	•  5.29: Is the oil level in the gear box correct?
+	•  5.30: Is the service brake set correctly? (SAIS J46200195, 9.18, 9.19)
+	•  5.31: Are all rods of the service and safety brake lubricated?
+	•  5.32: Is/are the speed monitor(s) set correctly? (SAIS J46200195, 9.17)
+	•  5.33: Is the mechanical blocking device set correctly and working? (SAIS J46200195, 9.15)
+	•  5.34: Is the machine room fan working? (SAIS J46200195, 9.21, 10.2.3)
+	•  5.35: Is the GFU fan working?
+6.  Overall
+	•  6.1: Is the side and bottom cladding installed properly?
+	•  6.2: Is the balustrade installed properly? (SAIS J46200195, 4.7)
+	•  6.3: Are the skirt brushes installed properly? (SAIS J46200195, 4.11)
+	•  6.4: Is the gap steps ↔ skirt panels correct? (SAIS J46200195, 4.10)
+	•  6.5: Are the handrail guide profiles installed properly?
+	•  6.6: Is the handrail drive chain tensioned correctly? (SAIS J46200195, 8.8)
+	•  6.7: Is the initial setting of the handrail drive chain marked permanently?
+	•  6.8: Is the initial lubrication of the handrail drive chain executed?
+	•  6.9: Are the pressure belts/chains set correctly?
+	•  6.10: Are the handrails tensioned correctly? (SAIS J46200195, 8.9)
+	•  6.11: Is the handrail well adjusted in up and down direction? (SAIS J46200195, 8.9)
+	•  6.12: Are the lateral rollers set correctly?
+7.  Finishing Work
+	•  7.1 Finishing Work - Bottom
+		•  7.1: Are the brushes from the lubrication steps set correctly? (SAIS J46200195, 7.23)
+		•  7.2: Are the lubrication steps activated? (SAIS J46200195, 7.23)
+		•  7.3: Are the step monitors working? (SAIS J46200195, 10.1.1)
+		•  7.4: Is the tightening torque of short pallets correct? (SAIS J46200195, 7.5)
+		•  7.5: Is the entrance monitoring system working? (SAIS J46200195, 10.3.9-10.3.11)
+		•  7.6: Is the light curtain working? (SAIS J46200195, 10.3.12)
+		•  7.7: Is the heating working? (SAIS J46200195, 7.20, 10.2.3)
+		•  7.8: Are the handrail monitors working? (SAIS J46200195, 10.1.2)
+		•  7.9: Is the UVC Device set correctly and working?
+		•  7.10: Is the initial lubrication of the step/pallet chain executed? (SAIS J46200195, 7.24)
+	•  7.2 Finishing Work - Top
+		•  7.11: Is the entrance monitoring system working? (SAIS J46200195, 10.3.9-10.3.11)
+		•  7.12: Is the heating working? (SAIS J46200195, 9.21, 10.2.3)
+		•  7.13: Is the braking distance of the service brake correct? (SAIS J46200195, 9.20, 9.29)
+		•  7.14: Is the electrical braking distance correct? (SAIS J46200195, 9.28)
+		•  7.15: Is the braking distance of the safety brake correct? (SAIS J46200195, 10.2.1)
+		•  7.16: Were all applicable technical tests successful? (SAIS J46200195, 10.1.3, 10.1.4)
+	•  7.3 Finishing Work - Overall
+		•  7.17: Are all “STOP” buttons working? (SAIS J46200195, 4.12, 10.3.2)
+		•  7.18: Are all key switches working? (SAIS J46200195, 10.3.1)
+		•  7.19: Are all direction indicators working? (SAIS J46200195, 10.3.13)
+		•  7.20: Are all digital displays working? (SAIS J46200195, 10.3.14)
+		•  7.21: Are both step gap lightings working? (SAIS J46200195, 10.3.6)
+		•  7.22: Are both combplate lightings working? (SAIS J46200195, 10.3.5)
+		•  7.23: Is the balustrade lighting working? (SAIS J46200195, 10.3.4)
+		•  7.24: Is the skirt lighting working? (SAIS J46200195, 10.3.3)
+		•  7.25: Is the truss lighting working?
+		•  7.26: Is the running behaviour of the handrails acceptable?
+		•  7.27: Is the running behaviour of the step/pallet acceptable? (SAIS J46200195, 7.14, 9.7)
+		•  7.28: Are all accessible parts installed correctly, securely fastened, have flush joints and are free from sharp edges? (SAIS J46200195, 4.8, 4.9)
+		•  7.29: Is the unit fully operational? (SAIS J46200195, 10.3.16-10.3.18)
+8.  Open Item List: Table for uid, work to be performed, responsible person, scheduled/actual completion.
+9.  Remarks: Free text area.
+        * 10.  Signatures: Fields for Commissioner and SAIS Inspector names/dates (digital sign via text or image capture).
+
+Dependencies: Add to pubspec.yaml: sqflite, path_provider, pdf, provider, intl (for dates). Run ‘flutter pub get’.
+Generate the full code, including main.dart, models, providers, screens (e.g., LoginScreen, DashboardScreen, ChecklistScreen, CompletedScreen, ExportScreen). Make it runnable on iOS simulator.
