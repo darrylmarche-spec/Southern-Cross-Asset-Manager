@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useCallback } from 'react';
+import React, { useMemo, useState, useCallback, useEffect, useRef } from 'react';
 import { View, Text, SectionList, Pressable, StyleSheet, Platform } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -67,8 +67,28 @@ function TaskRow({ task, taskState, onPress }: { task: TaskDefinition; taskState
 
 export default function ChecklistScreen() {
   const insets = useSafeAreaInsets();
-  const { currentProject, taskStates, getTaskState } = useApp();
+  const { currentProject, taskStates, getTaskState, focusSection, setFocusSection } = useApp();
   const [collapsedSections, setCollapsedSections] = useState<Set<number>>(new Set([0,1,2,3,4,5,6,7]));
+  const sectionListRef = useRef<SectionList>(null);
+
+  useEffect(() => {
+    if (focusSection !== null) {
+      const allCollapsed = new Set([0,1,2,3,4,5,6,7]);
+      allCollapsed.delete(focusSection);
+      setCollapsedSections(allCollapsed);
+      setFocusSection(null);
+      setTimeout(() => {
+        try {
+          sectionListRef.current?.scrollToLocation({
+            sectionIndex: focusSection,
+            itemIndex: 0,
+            viewOffset: 0,
+            animated: true,
+          });
+        } catch {}
+      }, 150);
+    }
+  }, [focusSection]);
 
   const projectTasks = useMemo(() => {
     if (!currentProject) return [];
@@ -120,6 +140,7 @@ export default function ChecklistScreen() {
         <Text style={styles.headerSubtitle}>{currentProject.projectName}</Text>
       </View>
       <SectionList
+        ref={sectionListRef}
         sections={sections}
         keyExtractor={(item) => item.uid}
         renderItem={({ item }) => (

@@ -10,7 +10,7 @@ import { ALL_TASKS, SECTIONS } from '@/data/checklist-data';
 
 export default function DashboardScreen() {
   const insets = useSafeAreaInsets();
-  const { currentProject, currentUser, taskStates, projects } = useApp();
+  const { currentProject, currentUser, taskStates, projects, setFocusSection } = useApp();
 
   const projectTasks = useMemo(() => {
     if (!currentProject) return [];
@@ -168,7 +168,7 @@ export default function DashboardScreen() {
         {sectionStats.map((section) => (
           <Pressable
             key={section.index}
-            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push('/(tabs)/checklist'); }}
+            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); setFocusSection(section.index); router.push('/(tabs)/checklist'); }}
             style={({ pressed }) => [styles.sectionCard, pressed && { opacity: 0.8 }]}
           >
             <View style={styles.sectionHeader}>

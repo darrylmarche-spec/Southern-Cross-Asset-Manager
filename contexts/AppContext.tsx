@@ -60,6 +60,8 @@ interface AppContextValue {
   getTaskState: (uid: string) => TaskState | undefined;
   getTaskDef: (uid: string) => TaskDefinition | undefined;
   isLoading: boolean;
+  focusSection: number | null;
+  setFocusSection: (index: number | null) => void;
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
@@ -79,6 +81,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [currentProject, setCurrentProject] = useState<ProjectInfo | null>(null);
   const [taskStates, setTaskStates] = useState<TaskState[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [focusSection, setFocusSection] = useState<number | null>(null);
 
   useEffect(() => {
     loadData();
@@ -234,7 +237,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     getTaskState,
     getTaskDef,
     isLoading,
-  }), [currentUser, users, login, logout, projects, currentProject, createProject, selectProject, deleteProject, taskStates, updateTask, completeTask, getTaskState, getTaskDef, isLoading]);
+    focusSection,
+    setFocusSection,
+  }), [currentUser, users, login, logout, projects, currentProject, createProject, selectProject, deleteProject, taskStates, updateTask, completeTask, getTaskState, getTaskDef, isLoading, focusSection]);
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
 }
