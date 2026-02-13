@@ -124,7 +124,7 @@ export default function DashboardScreen() {
         </View>
 
         <View style={styles.statsRow}>
-          <View style={[styles.statCard, { backgroundColor: '#EBF5FF' }]}>
+          <View style={[styles.statCard, { backgroundColor: Colors.primaryLight }]}>
             <Text style={[styles.statNumber, { color: Colors.primary }]}>{stats.percent}%</Text>
             <Text style={styles.statLabel}>Complete</Text>
           </View>

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TextInput, Pressable, StyleSheet, KeyboardAvoidingView, Platform, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, TextInput, Pressable, StyleSheet, KeyboardAvoidingView, Platform, ActivityIndicator } from 'react-native';
+import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -7,6 +8,8 @@ import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import Colors from '@/constants/colors';
 import { useApp } from '@/contexts/AppContext';
+
+const logoSource = require('@/assets/images/scs-logo.png');
 
 export default function LoginScreen() {
   const insets = useSafeAreaInsets();
@@ -52,28 +55,29 @@ export default function LoginScreen() {
   };
 
   return (
-    <LinearGradient colors={['#0A1628', '#0F2847', '#0A1628']} style={styles.gradient}>
+    <LinearGradient colors={['#0D0D0D', '#1A1A1A', '#0D0D0D']} style={styles.gradient}>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.flex}
       >
         <View style={[styles.container, { paddingTop: insets.top + (Platform.OS === 'web' ? 67 : 40), paddingBottom: insets.bottom + (Platform.OS === 'web' ? 34 : 20) }]}>
           <View style={styles.header}>
-            <View style={styles.iconCircle}>
-              <Ionicons name="construct" size={36} color="#FFFFFF" />
-            </View>
-            <Text style={styles.title}>SCS Checklist</Text>
-            <Text style={styles.subtitle}>Schindler Escalator Commissioning</Text>
+            <Image
+              source={logoSource}
+              style={styles.logo}
+              contentFit="contain"
+            />
+            <Text style={styles.subtitle}>Escalator Commissioning Checklist</Text>
           </View>
 
           <View style={styles.form}>
             <View style={styles.inputGroup}>
               <View style={styles.inputWrapper}>
-                <Ionicons name="person-outline" size={20} color={Colors.textTertiary} style={styles.inputIcon} />
+                <Ionicons name="person-outline" size={20} color="rgba(255,255,255,0.35)" style={styles.inputIcon} />
                 <TextInput
                   style={styles.input}
                   placeholder="Username"
-                  placeholderTextColor={Colors.textTertiary}
+                  placeholderTextColor="rgba(255,255,255,0.3)"
                   value={username}
                   onChangeText={(t) => { setUsername(t); setError(''); }}
                   autoCapitalize="none"
@@ -82,11 +86,11 @@ export default function LoginScreen() {
                 />
               </View>
               <View style={styles.inputWrapper}>
-                <Ionicons name="lock-closed-outline" size={20} color={Colors.textTertiary} style={styles.inputIcon} />
+                <Ionicons name="lock-closed-outline" size={20} color="rgba(255,255,255,0.35)" style={styles.inputIcon} />
                 <TextInput
                   style={styles.input}
                   placeholder="Password"
-                  placeholderTextColor={Colors.textTertiary}
+                  placeholderTextColor="rgba(255,255,255,0.3)"
                   value={password}
                   onChangeText={(t) => { setPassword(t); setError(''); }}
                   secureTextEntry={!showPassword}
@@ -94,7 +98,7 @@ export default function LoginScreen() {
                   onSubmitEditing={handleLogin}
                 />
                 <Pressable onPress={() => setShowPassword(!showPassword)} hitSlop={8}>
-                  <Ionicons name={showPassword ? 'eye-off-outline' : 'eye-outline'} size={20} color={Colors.textTertiary} />
+                  <Ionicons name={showPassword ? 'eye-off-outline' : 'eye-outline'} size={20} color="rgba(255,255,255,0.35)" />
                 </Pressable>
               </View>
             </View>
@@ -125,23 +129,20 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   flex: { flex: 1 },
   gradient: { flex: 1 },
-  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#0A1628' },
+  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#0D0D0D' },
   container: { flex: 1, justifyContent: 'center', paddingHorizontal: 24 },
-  header: { alignItems: 'center', marginBottom: 48 },
-  iconCircle: {
-    width: 80, height: 80, borderRadius: 24,
-    backgroundColor: 'rgba(10,132,255,0.25)',
-    justifyContent: 'center', alignItems: 'center',
-    marginBottom: 20,
-    borderWidth: 1, borderColor: 'rgba(10,132,255,0.4)',
+  header: { alignItems: 'center', marginBottom: 40 },
+  logo: {
+    width: 220,
+    height: 220,
+    marginBottom: 12,
   },
-  title: { fontSize: 28, fontFamily: 'Inter_700Bold', color: '#FFFFFF', marginBottom: 8 },
-  subtitle: { fontSize: 15, fontFamily: 'Inter_400Regular', color: 'rgba(255,255,255,0.5)', textAlign: 'center' },
+  subtitle: { fontSize: 14, fontFamily: 'Inter_400Regular', color: 'rgba(255,255,255,0.45)', textAlign: 'center' },
   form: { gap: 16 },
   inputGroup: { gap: 12 },
   inputWrapper: {
     flexDirection: 'row', alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.08)',
+    backgroundColor: 'rgba(255,255,255,0.07)',
     borderRadius: 14, paddingHorizontal: 16, height: 52,
     borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)',
   },
@@ -151,9 +152,9 @@ const styles = StyleSheet.create({
   errorText: { fontSize: 13, fontFamily: 'Inter_500Medium', color: Colors.danger },
   loginButton: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    backgroundColor: Colors.primary, borderRadius: 14, height: 52, marginTop: 8,
+    backgroundColor: '#CC0000', borderRadius: 14, height: 52, marginTop: 8,
   },
   loginButtonPressed: { opacity: 0.85, transform: [{ scale: 0.98 }] },
   loginButtonText: { fontSize: 17, fontFamily: 'Inter_600SemiBold', color: '#FFFFFF' },
-  hint: { fontSize: 12, fontFamily: 'Inter_400Regular', color: 'rgba(255,255,255,0.3)', textAlign: 'center', marginTop: 8 },
+  hint: { fontSize: 12, fontFamily: 'Inter_400Regular', color: 'rgba(255,255,255,0.25)', textAlign: 'center', marginTop: 8 },
 });

@@ -1,8 +1,8 @@
 const Colors = {
-  primary: '#0A84FF',
-  primaryDark: '#0066CC',
+  primary: '#CC0000',
+  primaryDark: '#990000',
   secondary: '#30D158',
-  accent: '#FF9F0A',
+  accent: '#CC0000',
   danger: '#FF453A',
   warning: '#FFD60A',
   background: '#F2F2F7',
@@ -19,9 +19,9 @@ const Colors = {
   successLight: '#D1FAE5',
   dangerLight: '#FEE2E2',
   warningLight: '#FEF3C7',
-  primaryLight: '#DBEAFE',
+  primaryLight: '#FDEAEA',
   tabIconDefault: '#8E8E93',
-  tint: '#0A84FF',
+  tint: '#CC0000',
   dark: {
     background: '#000000',
     surface: '#1C1C1E',
@@ -31,9 +31,9 @@ const Colors = {
   light: {
     text: '#000',
     background: '#fff',
-    tint: '#0A84FF',
+    tint: '#CC0000',
     tabIconDefault: '#8E8E93',
-    tabIconSelected: '#0A84FF',
+    tabIconSelected: '#CC0000',
   },
 };
 

@@ -15,7 +15,6 @@ export default function ProjectSetupScreen() {
   const [location, setLocation] = useState('');
   const [commissionNumber, setCommissionNumber] = useState('');
   const [escalatorType, setEscalatorType] = useState('');
-  const [dateOfCompletion, setDateOfCompletion] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const validate = () => {
@@ -40,21 +39,20 @@ export default function ProjectSetupScreen() {
       location: location.trim(),
       commissionNumber: commissionNumber.trim(),
       escalatorType: escalatorType.trim() || 'Escalator',
-      dateOfCompletion: dateOfCompletion.trim(),
+      dateOfCompletion: '',
     });
     router.back();
   };
 
-  const renderField = (label: string, value: string, setter: (v: string) => void, key: string, placeholder: string, multiline?: boolean) => (
+  const renderField = (label: string, value: string, setter: (v: string) => void, key: string, placeholder: string) => (
     <View style={styles.fieldGroup}>
       <Text style={styles.fieldLabel}>{label}</Text>
       <TextInput
-        style={[styles.fieldInput, multiline && styles.fieldInputMultiline, errors[key] && styles.fieldInputError]}
+        style={[styles.fieldInput, errors[key] && styles.fieldInputError]}
         value={value}
         onChangeText={(v) => { setter(v); setErrors(prev => ({ ...prev, [key]: '' })); }}
         placeholder={placeholder}
         placeholderTextColor={Colors.textTertiary}
-        multiline={multiline}
         autoCorrect={false}
       />
       {!!errors[key] && <Text style={styles.fieldError}>{errors[key]}</Text>}
@@ -81,7 +79,6 @@ export default function ProjectSetupScreen() {
           {renderField('Location *', location, setLocation, 'location', 'e.g. Sydney CBD, Level 3')}
           {renderField('Commission Number *', commissionNumber, setCommissionNumber, 'commissionNumber', 'e.g. COM-2026-001')}
           {renderField('Type of Escalator / Moving Walk', escalatorType, setEscalatorType, 'escalatorType', 'e.g. 9300AE Escalator')}
-          {renderField('Date of Completion', dateOfCompletion, setDateOfCompletion, 'dateOfCompletion', 'e.g. 2026-03-15')}
 
           <Pressable
             onPress={handleCreate}
@@ -104,7 +101,6 @@ const styles = StyleSheet.create({
   fieldGroup: { gap: 6 },
   fieldLabel: { fontSize: 13, fontFamily: 'Inter_600SemiBold', color: Colors.textSecondary, textTransform: 'uppercase' as const, letterSpacing: 0.5 },
   fieldInput: { backgroundColor: Colors.surface, borderRadius: 12, paddingHorizontal: 16, height: 48, fontSize: 15, fontFamily: 'Inter_400Regular', color: Colors.text, borderWidth: 1, borderColor: Colors.borderLight },
-  fieldInputMultiline: { height: 80, paddingTop: 14, textAlignVertical: 'top' as const },
   fieldInputError: { borderColor: Colors.danger },
   fieldError: { fontSize: 12, fontFamily: 'Inter_500Medium', color: Colors.danger },
   createButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: Colors.primary, borderRadius: 14, height: 52, marginTop: 8 },
