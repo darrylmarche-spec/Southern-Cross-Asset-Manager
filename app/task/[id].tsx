@@ -1,11 +1,14 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { View, Text, TextInput, ScrollView, Pressable, StyleSheet, Platform, Alert } from 'react-native';
+import { View, Text, TextInput, ScrollView, Pressable, StyleSheet, Platform, Alert, Image, ActionSheetIOS } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
+import * as ImagePicker from 'expo-image-picker';
+import * as DocumentPicker from 'expo-document-picker';
 import Colors from '@/constants/colors';
 import { useApp } from '@/contexts/AppContext';
+import { type Attachment } from '@/contexts/AppContext';
 import { ALL_TASKS, type ResponseValue } from '@/data/checklist-data';
 
 const RESPONSE_OPTIONS: { value: ResponseValue; label: string; color: string; bg: string }[] = [
@@ -33,6 +36,8 @@ export default function TaskDetailScreen() {
   const [assignedTo, setAssignedTo] = useState('');
   const [dueDate, setDueDate] = useState('');
   const [showAssignPicker, setShowAssignPicker] = useState(false);
+  const [attachments, setAttachments] = useState<Attachment[]>([]);
+  const [showAttachMenu, setShowAttachMenu] = useState(false);
 
   useEffect(() => {
     if (taskState) {
@@ -43,6 +48,7 @@ export default function TaskDetailScreen() {
       setRemarks(taskState.remarks);
       setAssignedTo(taskState.assignedTo);
       setDueDate(taskState.dueDate);
+      setAttachments(taskState.attachments || []);
     }
   }, []);
 
@@ -57,9 +63,130 @@ export default function TaskDetailScreen() {
   const isOverhaul = taskDef.type === 'overhaul';
   const isCompleted = taskState?.status === 'completed';
 
+  const generateId = () => Date.now().toString() + Math.random().toString(36).substr(2, 9);
+
   const handleSave = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    updateTask(id, { actDuration, actLabor, comments, response, remarks, assignedTo, dueDate });
+    updateTask(id, { actDuration, actLabor, comments, response, remarks, assignedTo, dueDate, attachments });
+  };
+
+  const handleTakePhoto = async () => {
+    setShowAttachMenu(false);
+    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    if (status !== 'granted') {
+      if (Platform.OS === 'web') alert('Camera permission is required.');
+      else Alert.alert('Permission Required', 'Camera permission is needed to take photos.');
+      return;
+    }
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: ['images'],
+      quality: 0.7,
+      allowsEditing: true,
+    });
+    if (!result.canceled && result.assets[0]) {
+      const asset = result.assets[0];
+      const newAttachment: Attachment = {
+        id: generateId(),
+        uri: asset.uri,
+        name: asset.fileName || `Photo_${Date.now()}.jpg`,
+        type: 'photo',
+        mimeType: asset.mimeType || 'image/jpeg',
+        addedAt: new Date().toISOString(),
+      };
+      const updated = [...attachments, newAttachment];
+      setAttachments(updated);
+      updateTask(id, { attachments: updated });
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    }
+  };
+
+  const handlePickPhoto = async () => {
+    setShowAttachMenu(false);
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      if (Platform.OS === 'web') alert('Photo library permission is required.');
+      else Alert.alert('Permission Required', 'Photo library access is needed.');
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      quality: 0.7,
+      allowsMultipleSelection: false,
+    });
+    if (!result.canceled && result.assets[0]) {
+      const asset = result.assets[0];
+      const newAttachment: Attachment = {
+        id: generateId(),
+        uri: asset.uri,
+        name: asset.fileName || `Photo_${Date.now()}.jpg`,
+        type: 'photo',
+        mimeType: asset.mimeType || 'image/jpeg',
+        addedAt: new Date().toISOString(),
+      };
+      const updated = [...attachments, newAttachment];
+      setAttachments(updated);
+      updateTask(id, { attachments: updated });
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    }
+  };
+
+  const handleUploadFile = async () => {
+    setShowAttachMenu(false);
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: '*/*',
+        copyToCacheDirectory: true,
+      });
+      if (!result.canceled && result.assets && result.assets[0]) {
+        const asset = result.assets[0];
+        const newAttachment: Attachment = {
+          id: generateId(),
+          uri: asset.uri,
+          name: asset.name || `File_${Date.now()}`,
+          type: 'file',
+          mimeType: asset.mimeType || 'application/octet-stream',
+          addedAt: new Date().toISOString(),
+        };
+        const updated = [...attachments, newAttachment];
+        setAttachments(updated);
+        updateTask(id, { attachments: updated });
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }
+    } catch (e) {
+      // user cancelled
+    }
+  };
+
+  const handleRemoveAttachment = (attachId: string) => {
+    const doRemove = () => {
+      const updated = attachments.filter(a => a.id !== attachId);
+      setAttachments(updated);
+      updateTask(id, { attachments: updated });
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    };
+    if (Platform.OS === 'web') {
+      if (confirm('Remove this attachment?')) doRemove();
+    } else {
+      Alert.alert('Remove Attachment', 'Are you sure you want to remove this?', [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Remove', style: 'destructive', onPress: doRemove },
+      ]);
+    }
+  };
+
+  const showAttachOptions = () => {
+    if (Platform.OS === 'ios') {
+      ActionSheetIOS.showActionSheetWithOptions(
+        { options: ['Cancel', 'Take Photo', 'Photo Library', 'Upload File'], cancelButtonIndex: 0 },
+        (index) => {
+          if (index === 1) handleTakePhoto();
+          else if (index === 2) handlePickPhoto();
+          else if (index === 3) handleUploadFile();
+        }
+      );
+    } else {
+      setShowAttachMenu(!showAttachMenu);
+    }
   };
 
   const handleComplete = () => {
@@ -265,6 +392,64 @@ export default function TaskDetailScreen() {
             multiline
             editable={!isCompleted}
           />
+
+          <View style={styles.attachSection}>
+            <View style={styles.attachHeader}>
+              <Text style={styles.attachLabel}>Attachments</Text>
+              {!isCompleted && (
+                <Pressable onPress={showAttachOptions} style={styles.attachAddBtn}>
+                  <Ionicons name="add-circle" size={22} color={Colors.primary} />
+                  <Text style={styles.attachAddText}>Add</Text>
+                </Pressable>
+              )}
+            </View>
+
+            {showAttachMenu && Platform.OS !== 'ios' && (
+              <View style={styles.attachMenu}>
+                <Pressable onPress={handleTakePhoto} style={styles.attachMenuItem}>
+                  <Ionicons name="camera" size={20} color={Colors.primary} />
+                  <Text style={styles.attachMenuText}>Take Photo</Text>
+                </Pressable>
+                <Pressable onPress={handlePickPhoto} style={styles.attachMenuItem}>
+                  <Ionicons name="images" size={20} color={Colors.primary} />
+                  <Text style={styles.attachMenuText}>Photo Library</Text>
+                </Pressable>
+                <Pressable onPress={handleUploadFile} style={styles.attachMenuItem}>
+                  <Ionicons name="document" size={20} color={Colors.primary} />
+                  <Text style={styles.attachMenuText}>Upload File</Text>
+                </Pressable>
+              </View>
+            )}
+
+            {attachments.length > 0 ? (
+              <View style={styles.attachList}>
+                {attachments.map((att) => (
+                  <View key={att.id} style={styles.attachItem}>
+                    {att.type === 'photo' ? (
+                      <Image source={{ uri: att.uri }} style={styles.attachThumb} />
+                    ) : (
+                      <View style={styles.attachFileIcon}>
+                        <Ionicons name="document-text" size={24} color={Colors.primary} />
+                      </View>
+                    )}
+                    <View style={styles.attachInfo}>
+                      <Text style={styles.attachName} numberOfLines={1}>{att.name}</Text>
+                      <Text style={styles.attachDate}>
+                        {new Date(att.addedAt).toLocaleDateString()}
+                      </Text>
+                    </View>
+                    {!isCompleted && (
+                      <Pressable onPress={() => handleRemoveAttachment(att.id)} hitSlop={8}>
+                        <Ionicons name="close-circle" size={22} color={Colors.danger} />
+                      </Pressable>
+                    )}
+                  </View>
+                ))}
+              </View>
+            ) : (
+              <Text style={styles.attachEmpty}>No attachments added</Text>
+            )}
+          </View>
         </View>
 
         {!isCompleted ? (
@@ -333,4 +518,20 @@ const styles = StyleSheet.create({
   completeButtonText: { fontSize: 17, fontFamily: 'Inter_600SemiBold', color: '#FFF' },
   reopenButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: Colors.warningLight, borderRadius: 14, height: 48, marginTop: 4 },
   reopenButtonText: { fontSize: 15, fontFamily: 'Inter_600SemiBold', color: '#B45309' },
+  attachSection: { marginTop: 8, gap: 8 },
+  attachHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  attachLabel: { fontSize: 13, fontFamily: 'Inter_600SemiBold', color: Colors.textSecondary, textTransform: 'uppercase' as const, letterSpacing: 0.3 },
+  attachAddBtn: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  attachAddText: { fontSize: 14, fontFamily: 'Inter_600SemiBold', color: Colors.primary },
+  attachMenu: { backgroundColor: Colors.background, borderRadius: 12, borderWidth: 1, borderColor: Colors.borderLight, overflow: 'hidden' as const },
+  attachMenuItem: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: Colors.borderLight },
+  attachMenuText: { fontSize: 15, fontFamily: 'Inter_500Medium', color: Colors.text },
+  attachList: { gap: 8 },
+  attachItem: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: Colors.background, borderRadius: 10, padding: 8, borderWidth: 1, borderColor: Colors.borderLight },
+  attachThumb: { width: 48, height: 48, borderRadius: 8 },
+  attachFileIcon: { width: 48, height: 48, borderRadius: 8, backgroundColor: Colors.primaryLight, alignItems: 'center', justifyContent: 'center' },
+  attachInfo: { flex: 1, gap: 2 },
+  attachName: { fontSize: 14, fontFamily: 'Inter_500Medium', color: Colors.text },
+  attachDate: { fontSize: 12, fontFamily: 'Inter_400Regular', color: Colors.textTertiary },
+  attachEmpty: { fontSize: 13, fontFamily: 'Inter_400Regular', color: Colors.textTertiary, fontStyle: 'italic' as const },
 });

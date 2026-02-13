@@ -19,6 +19,15 @@ export interface ProjectInfo {
   createdBy: string;
 }
 
+export interface Attachment {
+  id: string;
+  uri: string;
+  name: string;
+  type: 'photo' | 'file';
+  mimeType?: string;
+  addedAt: string;
+}
+
 export interface TaskState {
   uid: string;
   projectId: string;
@@ -32,6 +41,7 @@ export interface TaskState {
   remarks: string;
   completedBy: string;
   completedAt: string;
+  attachments?: Attachment[];
 }
 
 interface AppContextValue {
