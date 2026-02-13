@@ -18,6 +18,7 @@ function RootLayoutNav() {
       <Stack.Screen name="(tabs)" />
       <Stack.Screen name="project-setup" options={{ presentation: 'modal' }} />
       <Stack.Screen name="task/[id]" options={{ presentation: 'card' }} />
+      <Stack.Screen name="manual-report" options={{ presentation: 'modal' }} />
     </Stack>
   );
 }
