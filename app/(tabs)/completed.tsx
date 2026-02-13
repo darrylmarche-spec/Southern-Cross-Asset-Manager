@@ -131,10 +131,16 @@ export default function CompletedScreen() {
           <Text style={styles.headerTitle}>Completed</Text>
           <Text style={styles.headerCount}>{completedTasks.length} tasks</Text>
         </View>
-        <Pressable onPress={generatePdf} style={({ pressed }) => [styles.pdfButton, pressed && { opacity: 0.7 }]}>
-          <Ionicons name="document-text-outline" size={18} color={Colors.primary} />
-          <Text style={styles.pdfButtonText}>PDF</Text>
-        </Pressable>
+        <View style={styles.headerButtons}>
+          <Pressable onPress={() => router.push('/manual-report')} style={({ pressed }) => [styles.reportButton, pressed && { opacity: 0.7 }]}>
+            <Ionicons name="create-outline" size={18} color={Colors.primary} />
+            <Text style={styles.reportButtonText}>Manual Report</Text>
+          </Pressable>
+          <Pressable onPress={generatePdf} style={({ pressed }) => [styles.reportButton, pressed && { opacity: 0.7 }]}>
+            <Ionicons name="document-text-outline" size={18} color={Colors.primary} />
+            <Text style={styles.reportButtonText}>Generate Report</Text>
+          </Pressable>
+        </View>
       </View>
 
       <View style={styles.filterRow}>
@@ -202,8 +208,9 @@ const styles = StyleSheet.create({
   headerLeft: {},
   headerTitle: { fontSize: 28, fontFamily: 'Inter_700Bold', color: Colors.text },
   headerCount: { fontSize: 14, fontFamily: 'Inter_400Regular', color: Colors.textSecondary },
-  pdfButton: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: Colors.primaryLight, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 8 },
-  pdfButtonText: { fontSize: 14, fontFamily: 'Inter_600SemiBold', color: Colors.primary },
+  headerButtons: { flexDirection: 'row', gap: 8 },
+  reportButton: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: Colors.primaryLight, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8 },
+  reportButtonText: { fontSize: 12, fontFamily: 'Inter_600SemiBold', color: Colors.primary },
   filterRow: { flexDirection: 'row', paddingHorizontal: 16, paddingVertical: 8, gap: 6, flexWrap: 'wrap' as const },
   filterChip: { backgroundColor: Colors.surface, borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6, borderWidth: 1, borderColor: Colors.borderLight },
   filterChipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
