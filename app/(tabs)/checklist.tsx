@@ -68,7 +68,7 @@ function TaskRow({ task, taskState, onPress }: { task: TaskDefinition; taskState
 export default function ChecklistScreen() {
   const insets = useSafeAreaInsets();
   const { currentProject, taskStates, getTaskState } = useApp();
-  const [collapsedSections, setCollapsedSections] = useState<Set<number>>(new Set());
+  const [collapsedSections, setCollapsedSections] = useState<Set<number>>(new Set([0,1,2,3,4,5,6,7]));
 
   const projectTasks = useMemo(() => {
     if (!currentProject) return [];
