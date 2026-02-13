@@ -12,8 +12,6 @@ const RESPONSE_OPTIONS: { value: ResponseValue; label: string; color: string; bg
   { value: 'yes', label: 'Yes', color: Colors.success, bg: Colors.successLight },
   { value: 'no', label: 'No', color: Colors.danger, bg: Colors.dangerLight },
   { value: 'check', label: 'Pass', color: Colors.success, bg: Colors.successLight },
-  { value: 'V', label: 'V (Fail SAIS)', color: Colors.danger, bg: Colors.dangerLight },
-  { value: 'O', label: 'O (Fail)', color: '#B45309', bg: Colors.warningLight },
   { value: 'na', label: 'N/A', color: Colors.textSecondary, bg: Colors.surfaceSecondary },
 ];
 
@@ -218,8 +216,8 @@ export default function TaskDetailScreen() {
         )}
 
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>Assignment</Text>
-          <Text style={styles.fieldLabel}>Assigned To</Text>
+          <Text style={styles.cardTitle}>Completion</Text>
+          <Text style={styles.fieldLabel}>Completed By</Text>
           <Pressable
             onPress={() => { if (!isCompleted) setShowAssignPicker(!showAssignPicker); }}
             style={styles.pickerButton}
@@ -245,12 +243,12 @@ export default function TaskDetailScreen() {
             </View>
           )}
 
-          <Text style={[styles.fieldLabel, { marginTop: 12 }]}>Due Date</Text>
+          <Text style={[styles.fieldLabel, { marginTop: 12 }]}>Checked By</Text>
           <TextInput
             style={styles.fieldInput}
             value={dueDate}
             onChangeText={setDueDate}
-            placeholder="YYYY-MM-DD"
+            placeholder="Enter name"
             placeholderTextColor={Colors.textTertiary}
             editable={!isCompleted}
           />
