@@ -21,7 +21,7 @@ const RESPONSE_OPTIONS: { value: ResponseValue; label: string; color: string; bg
 export default function TaskDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const insets = useSafeAreaInsets();
-  const { getTaskState, getTaskDef, updateTask, completeTask, currentUser, users } = useApp();
+  const { getTaskState, getTaskDef, updateTask, completeTask, currentUser, users, currentProject } = useApp();
 
   const taskDef = useMemo(() => ALL_TASKS.find(t => t.uid === id), [id]);
   const taskState = getTaskState(id || '');
