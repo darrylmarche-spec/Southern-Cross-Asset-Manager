@@ -18,6 +18,19 @@ export interface ProjectInfo {
   dateOfCompletion: string;
   createdAt: string;
   createdBy: string;
+  assignedMembers: string[];
+}
+
+export interface SubmittedReport {
+  id: string;
+  projectId: string;
+  submittedBy: string;
+  submittedAt: string;
+  type: 'generate' | 'manual';
+  content: string; // HTML or JSON string
+  notes?: string;
+  subject?: string;
+  status: 'pending' | 'reviewed';
 }
 
 export interface Attachment {
@@ -63,6 +76,9 @@ interface AppContextValue {
   isLoading: boolean;
   focusSection: number | null;
   setFocusSection: (index: number | null) => void;
+  submittedReports: SubmittedReport[];
+  submitReport: (report: Omit<SubmittedReport, 'id' | 'submittedAt' | 'status'>) => void;
+  updateReport: (id: string, updates: Partial<SubmittedReport>) => void;
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
@@ -73,6 +89,7 @@ const STORAGE_KEYS = {
   CURRENT_PROJECT: '@schindler_current_project',
   TASK_STATES: '@schindler_task_states',
   CURRENT_USER: '@schindler_current_user',
+  SUBMITTED_REPORTS: '@schindler_submitted_reports',
 };
 
 export function AppProvider({ children }: { children: ReactNode }) {
@@ -83,6 +100,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [taskStates, setTaskStates] = useState<TaskState[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [focusSection, setFocusSection] = useState<number | null>(null);
+  const [submittedReports, setSubmittedReports] = useState<SubmittedReport[]>([]);
 
   useEffect(() => {
     loadData();
@@ -90,12 +108,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const loadData = async () => {
     try {
-      const [savedUsers, savedProjects, savedCurrentProject, savedTaskStates, savedCurrentUser] = await Promise.all([
+      const [savedUsers, savedProjects, savedCurrentProject, savedTaskStates, savedCurrentUser, savedReports] = await Promise.all([
         AsyncStorage.getItem(STORAGE_KEYS.USERS),
         AsyncStorage.getItem(STORAGE_KEYS.PROJECTS),
         AsyncStorage.getItem(STORAGE_KEYS.CURRENT_PROJECT),
         AsyncStorage.getItem(STORAGE_KEYS.TASK_STATES),
         AsyncStorage.getItem(STORAGE_KEYS.CURRENT_USER),
+        AsyncStorage.getItem(STORAGE_KEYS.SUBMITTED_REPORTS),
       ]);
 
       if (savedUsers) setUsers(JSON.parse(savedUsers));
@@ -105,6 +124,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (savedCurrentProject) setCurrentProject(JSON.parse(savedCurrentProject));
       if (savedTaskStates) setTaskStates(JSON.parse(savedTaskStates));
       if (savedCurrentUser) setCurrentUser(JSON.parse(savedCurrentUser));
+      if (savedReports) setSubmittedReports(JSON.parse(savedReports));
     } catch (e) {
       console.error('Failed to load data:', e);
     } finally {
@@ -179,15 +199,40 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const deleteProject = useCallback((id: string) => {
     const updatedProjects = projects.filter(p => p.id !== id);
     const updatedTasks = taskStates.filter(t => t.projectId !== id);
+    const updatedReports = submittedReports.filter(r => r.projectId !== id);
     setProjects(updatedProjects);
     setTaskStates(updatedTasks);
+    setSubmittedReports(updatedReports);
     saveProjects(updatedProjects);
     saveTaskStates(updatedTasks);
+    AsyncStorage.setItem(STORAGE_KEYS.SUBMITTED_REPORTS, JSON.stringify(updatedReports));
     if (currentProject?.id === id) {
       setCurrentProject(null);
       AsyncStorage.removeItem(STORAGE_KEYS.CURRENT_PROJECT);
     }
-  }, [projects, taskStates, currentProject, saveProjects, saveTaskStates]);
+  }, [projects, taskStates, submittedReports, currentProject, saveProjects, saveTaskStates]);
+
+  const submitReport = useCallback((report: Omit<SubmittedReport, 'id' | 'submittedAt' | 'status'>) => {
+    const newReport: SubmittedReport = {
+      ...report,
+      id: Date.now().toString(),
+      submittedAt: new Date().toISOString(),
+      status: 'pending',
+    };
+    setSubmittedReports(prev => {
+      const updated = [...prev, newReport];
+      AsyncStorage.setItem(STORAGE_KEYS.SUBMITTED_REPORTS, JSON.stringify(updated));
+      return updated;
+    });
+  }, []);
+
+  const updateReport = useCallback((id: string, updates: Partial<SubmittedReport>) => {
+    setSubmittedReports(prev => {
+      const updated = prev.map(r => r.id === id ? { ...r, ...updates } : r);
+      AsyncStorage.setItem(STORAGE_KEYS.SUBMITTED_REPORTS, JSON.stringify(updated));
+      return updated;
+    });
+  }, []);
 
   const updateTask = useCallback((uid: string, updates: Partial<TaskState>) => {
     if (!currentProject) return;
@@ -240,7 +285,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     isLoading,
     focusSection,
     setFocusSection,
-  }), [currentUser, users, login, logout, projects, currentProject, createProject, selectProject, deleteProject, taskStates, updateTask, completeTask, getTaskState, getTaskDef, isLoading, focusSection]);
+    submittedReports,
+    submitReport,
+    updateReport,
+  }), [currentUser, users, login, logout, projects, currentProject, createProject, selectProject, deleteProject, taskStates, updateTask, completeTask, getTaskState, getTaskDef, isLoading, focusSection, submittedReports, submitReport, updateReport]);
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
 }
