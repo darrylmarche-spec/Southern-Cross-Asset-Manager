@@ -295,7 +295,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     users,
     login,
     logout,
-    projects,
+    projects: currentUser?.role === 'admin' 
+      ? projects 
+      : projects.filter(p => p.assignedMembers?.includes(currentUser?.username || '')),
     currentProject,
     createProject,
     selectProject,

@@ -46,7 +46,7 @@ export default function SettingsScreen() {
           </View>
           <View style={styles.userInfo}>
             <Text style={styles.userName}>{currentUser?.username}</Text>
-            <Text style={styles.userRole}>Team Member</Text>
+            <Text style={styles.userRole}>{currentUser?.role === 'admin' ? 'Administrator' : 'Team Member'}</Text>
           </View>
           <Pressable onPress={handleLogout} style={({ pressed }) => [styles.logoutButton, pressed && { opacity: 0.7 }]}>
             <Ionicons name="log-out-outline" size={20} color={Colors.danger} />
@@ -56,12 +56,14 @@ export default function SettingsScreen() {
         <View style={styles.section}>
           <View style={styles.sectionHeaderRow}>
             <Text style={styles.sectionTitle}>Projects</Text>
-            <Pressable
-              onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); router.push('/project-setup'); }}
-              style={({ pressed }) => [pressed && { opacity: 0.7 }]}
-            >
-              <Ionicons name="add-circle" size={28} color={Colors.primary} />
-            </Pressable>
+            {currentUser?.role === 'admin' && (
+              <Pressable
+                onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); router.push('/project-setup'); }}
+                style={({ pressed }) => [pressed && { opacity: 0.7 }]}
+              >
+                <Ionicons name="add-circle" size={28} color={Colors.primary} />
+              </Pressable>
+            )}
           </View>
 
           {projects.length === 0 ? (
@@ -96,13 +98,16 @@ export default function SettingsScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Team Members</Text>
           <View style={styles.teamList}>
-            {['Darryl', 'TeamMember1', 'TeamMember2', 'TeamMember3'].map(name => (
-              <View key={name} style={styles.teamItem}>
-                <View style={[styles.teamAvatar, name === currentUser?.username && { backgroundColor: Colors.primary }]}>
-                  <Text style={styles.teamInitial}>{name[0]}</Text>
+            {users.map(u => (
+              <View key={u.username} style={styles.teamItem}>
+                <View style={[styles.teamAvatar, u.username === currentUser?.username && { backgroundColor: Colors.primary }]}>
+                  <Text style={styles.teamInitial}>{u.username[0]}</Text>
                 </View>
-                <Text style={styles.teamName}>{name}</Text>
-                {name === currentUser?.username && <Text style={styles.youBadge}>You</Text>}
+                <View style={styles.teamInfo}>
+                  <Text style={styles.teamName}>{u.username}</Text>
+                  {u.role === 'admin' && <Text style={styles.adminBadge}>Admin</Text>}
+                </View>
+                {u.username === currentUser?.username && <Text style={styles.youBadge}>You</Text>}
               </View>
             ))}
           </View>
@@ -139,7 +144,9 @@ const styles = StyleSheet.create({
   teamItem: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: Colors.borderLight },
   teamAvatar: { width: 36, height: 36, borderRadius: 12, backgroundColor: Colors.textTertiary, justifyContent: 'center', alignItems: 'center' },
   teamInitial: { fontSize: 16, fontFamily: 'Inter_700Bold', color: '#FFF' },
-  teamName: { flex: 1, fontSize: 14, fontFamily: 'Inter_500Medium', color: Colors.text },
+  teamInfo: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8 },
+  teamName: { fontSize: 14, fontFamily: 'Inter_500Medium', color: Colors.text },
+  adminBadge: { fontSize: 10, fontFamily: 'Inter_700Bold', color: Colors.primary, backgroundColor: Colors.primary + '10', borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2 },
   youBadge: { fontSize: 11, fontFamily: 'Inter_600SemiBold', color: Colors.primary, backgroundColor: Colors.primaryLight, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 2 },
   version: { textAlign: 'center', fontSize: 12, fontFamily: 'Inter_400Regular', color: Colors.textTertiary, marginTop: 8, marginBottom: 20 },
 });
