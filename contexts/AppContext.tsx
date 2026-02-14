@@ -5,6 +5,7 @@ import { ALL_TASKS, DEFAULT_USERS, type TaskDefinition, type ResponseValue } fro
 export interface UserAccount {
   username: string;
   password: string;
+  role: 'admin' | 'member';
 }
 
 export interface ProjectInfo {
