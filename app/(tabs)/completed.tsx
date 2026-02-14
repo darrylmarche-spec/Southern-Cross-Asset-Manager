@@ -12,7 +12,7 @@ import { router } from 'expo-router';
 
 export default function CompletedScreen() {
   const insets = useSafeAreaInsets();
-  const { currentProject, taskStates, getTaskState } = useApp();
+  const { currentProject, currentUser, taskStates, getTaskState, submitReport } = useApp();
   const [filterSection, setFilterSection] = useState<number | null>(null);
 
   const completedTasks = useMemo(() => {
@@ -105,6 +105,19 @@ export default function CompletedScreen() {
 
     try {
       const { uri } = await Print.printToFileAsync({ html });
+      
+      if (currentUser?.role === 'member') {
+        // Automatically "send" to admin by storing it
+        submitReport({
+          projectId: currentProject.id,
+          submittedBy: currentUser.username,
+          type: 'generate',
+          content: html,
+          subject: `${currentProject.projectName} - Commissioning Report`,
+        });
+        Alert.alert('Report Sent', 'Your report has been sent to the administrator for review.');
+      }
+
       if (Platform.OS === 'web') {
         await Print.printAsync({ html });
       } else {

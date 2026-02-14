@@ -18,8 +18,6 @@ const RESPONSE_OPTIONS: { value: ResponseValue; label: string; color: string; bg
   { value: 'na', label: 'N/A', color: Colors.textSecondary, bg: Colors.surfaceSecondary },
 ];
 
-const TEAM_MEMBERS = ['', 'Darryl', 'TeamMember1', 'TeamMember2', 'TeamMember3'];
-
 export default function TaskDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const insets = useSafeAreaInsets();
@@ -27,6 +25,11 @@ export default function TaskDetailScreen() {
 
   const taskDef = useMemo(() => ALL_TASKS.find(t => t.uid === id), [id]);
   const taskState = getTaskState(id || '');
+  
+  const projectMembers = useMemo(() => {
+    if (!currentProject) return [''];
+    return ['', ...currentProject.assignedMembers];
+  }, [currentProject]);
 
   const [actDuration, setActDuration] = useState('');
   const [actLabor, setActLabor] = useState('');
@@ -356,7 +359,7 @@ export default function TaskDetailScreen() {
           </Pressable>
           {showAssignPicker && (
             <View style={styles.pickerDropdown}>
-              {TEAM_MEMBERS.map(name => (
+              {projectMembers.map(name => (
                 <Pressable
                   key={name || 'none'}
                   onPress={() => { setAssignedTo(name); setShowAssignPicker(false); Haptics.selectionAsync(); }}
