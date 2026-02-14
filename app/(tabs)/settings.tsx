@@ -9,7 +9,7 @@ import { useApp } from '@/contexts/AppContext';
 
 export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
-  const { currentUser, logout, projects, currentProject, selectProject, deleteProject } = useApp();
+  const { currentUser, logout, projects, currentProject, selectProject, deleteProject, users } = useApp();
 
   const handleLogout = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
