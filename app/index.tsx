@@ -9,7 +9,7 @@ import * as Haptics from 'expo-haptics';
 import Colors from '@/constants/colors';
 import { useApp } from '@/contexts/AppContext';
 
-const logoSource = require('@/assets/images/scs-logo.png');
+const logoSource = require('@/assets/images/logo.jpeg');
 
 export default function LoginScreen() {
   const insets = useSafeAreaInsets();
@@ -133,8 +133,8 @@ const styles = StyleSheet.create({
   container: { flex: 1, justifyContent: 'center', paddingHorizontal: 24 },
   header: { alignItems: 'center', marginBottom: 40 },
   logo: {
-    width: 220,
-    height: 220,
+    width: 280,
+    height: 380,
     marginBottom: 12,
   },
   subtitle: { fontSize: 14, fontFamily: 'Inter_400Regular', color: 'rgba(255,255,255,0.45)', textAlign: 'center' },
