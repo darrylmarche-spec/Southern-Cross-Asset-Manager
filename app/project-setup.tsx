@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { View, Text, TextInput, ScrollView, Pressable, StyleSheet, Platform, KeyboardAvoidingView } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -9,13 +9,23 @@ import { useApp } from '@/contexts/AppContext';
 
 export default function ProjectSetupScreen() {
   const insets = useSafeAreaInsets();
-  const { createProject } = useApp();
+  const { createProject, users } = useApp();
   const [customer, setCustomer] = useState('');
   const [projectName, setProjectName] = useState('');
   const [location, setLocation] = useState('');
   const [commissionNumber, setCommissionNumber] = useState('');
   const [escalatorType, setEscalatorType] = useState('');
+  const [assignedMembers, setAssignedMembers] = useState<string[]>([]);
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  const members = useMemo(() => users.filter(u => u.role === 'member'), [users]);
+
+  const toggleMember = (username: string) => {
+    Haptics.selectionAsync();
+    setAssignedMembers(prev => 
+      prev.includes(username) ? prev.filter(u => u !== username) : [...prev, username]
+    );
+  };
 
   const validate = () => {
     const newErrors: Record<string, string> = {};
@@ -40,6 +50,7 @@ export default function ProjectSetupScreen() {
       commissionNumber: commissionNumber.trim(),
       escalatorType: escalatorType.trim() || 'Escalator',
       dateOfCompletion: '',
+      assignedMembers: assignedMembers,
     });
     router.back();
   };
@@ -80,6 +91,36 @@ export default function ProjectSetupScreen() {
           {renderField('Commission Number *', commissionNumber, setCommissionNumber, 'commissionNumber', 'e.g. COM-2026-001')}
           {renderField('Type of Escalator / Moving Walk', escalatorType, setEscalatorType, 'escalatorType', 'e.g. 9300AE Escalator')}
 
+          {members.length > 0 && (
+            <View style={styles.fieldGroup}>
+              <Text style={styles.fieldLabel}>Assign Team Members</Text>
+              <View style={styles.memberList}>
+                {members.map(member => (
+                  <Pressable
+                    key={member.username}
+                    onPress={() => toggleMember(member.username)}
+                    style={[
+                      styles.memberChip,
+                      assignedMembers.includes(member.username) && styles.memberChipSelected
+                    ]}
+                  >
+                    <Ionicons 
+                      name={assignedMembers.includes(member.username) ? "checkmark-circle" : "add-circle-outline"} 
+                      size={18} 
+                      color={assignedMembers.includes(member.username) ? "#FFF" : Colors.textSecondary} 
+                    />
+                    <Text style={[
+                      styles.memberChipText,
+                      assignedMembers.includes(member.username) && styles.memberChipTextSelected
+                    ]}>
+                      {member.username}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+            </View>
+          )}
+
           <Pressable
             onPress={handleCreate}
             style={({ pressed }) => [styles.createButton, pressed && { opacity: 0.85, transform: [{ scale: 0.98 }] }]}
@@ -105,4 +146,9 @@ const styles = StyleSheet.create({
   fieldError: { fontSize: 12, fontFamily: 'Inter_500Medium', color: Colors.danger },
   createButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: Colors.primary, borderRadius: 14, height: 52, marginTop: 8 },
   createButtonText: { fontSize: 17, fontFamily: 'Inter_600SemiBold', color: '#FFF' },
+  memberList: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 },
+  memberChip: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: Colors.surface, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20, borderWidth: 1, borderColor: Colors.borderLight },
+  memberChipSelected: { backgroundColor: Colors.primary, borderColor: Colors.primary },
+  memberChipText: { fontSize: 14, fontFamily: 'Inter_500Medium', color: Colors.textSecondary },
+  memberChipTextSelected: { color: '#FFF' },
 });

@@ -79,6 +79,8 @@ interface AppContextValue {
   submittedReports: SubmittedReport[];
   submitReport: (report: Omit<SubmittedReport, 'id' | 'submittedAt' | 'status'>) => void;
   updateReport: (id: string, updates: Partial<SubmittedReport>) => void;
+  addUser: (username: string, role: 'admin' | 'member') => void;
+  deleteUser: (username: string) => void;
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
@@ -234,6 +236,27 @@ export function AppProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
+  const addUser = useCallback((username: string, role: 'admin' | 'member') => {
+    setUsers(prev => {
+      const newUser: UserAccount = {
+        username,
+        password: 'password123', // Default password
+        role
+      };
+      const updated = [...prev, newUser];
+      AsyncStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(updated));
+      return updated;
+    });
+  }, []);
+
+  const deleteUser = useCallback((username: string) => {
+    setUsers(prev => {
+      const updated = prev.filter(u => u.username !== username);
+      AsyncStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(updated));
+      return updated;
+    });
+  }, []);
+
   const updateTask = useCallback((uid: string, updates: Partial<TaskState>) => {
     if (!currentProject) return;
     setTaskStates(prev => {
@@ -288,7 +311,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     submittedReports,
     submitReport,
     updateReport,
-  }), [currentUser, users, login, logout, projects, currentProject, createProject, selectProject, deleteProject, taskStates, updateTask, completeTask, getTaskState, getTaskDef, isLoading, focusSection, submittedReports, submitReport, updateReport]);
+    addUser,
+    deleteUser,
+  }), [currentUser, users, login, logout, projects, currentProject, createProject, selectProject, deleteProject, taskStates, updateTask, completeTask, getTaskState, getTaskDef, isLoading, focusSection, submittedReports, submitReport, updateReport, addUser, deleteUser]);
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
 }

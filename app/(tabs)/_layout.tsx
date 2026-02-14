@@ -7,8 +7,10 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import React from "react";
 import Colors from "@/constants/colors";
+import { useApp } from "@/contexts/AppContext";
 
 function NativeTabLayout() {
+  const { currentUser } = useApp();
   return (
     <NativeTabs>
       <NativeTabs.Trigger name="index">
@@ -23,6 +25,12 @@ function NativeTabLayout() {
         <Icon sf={{ default: "checkmark.circle", selected: "checkmark.circle.fill" }} />
         <Label>Completed</Label>
       </NativeTabs.Trigger>
+      {currentUser?.role === 'admin' && (
+        <NativeTabs.Trigger name="admin">
+          <Icon sf={{ default: "shield.lefthalf.filled", selected: "shield.fill" }} />
+          <Label>Admin</Label>
+        </NativeTabs.Trigger>
+      )}
       <NativeTabs.Trigger name="settings">
         <Icon sf={{ default: "gearshape", selected: "gearshape.fill" }} />
         <Label>More</Label>
@@ -32,6 +40,7 @@ function NativeTabLayout() {
 }
 
 function ClassicTabLayout() {
+  const { currentUser } = useApp();
   const colorScheme = useColorScheme();
   const isDark = colorScheme === "dark";
   const isWeb = Platform.OS === "web";
@@ -79,6 +88,14 @@ function ClassicTabLayout() {
         options={{
           title: "Completed",
           tabBarIcon: ({ color, size }) => <Ionicons name="checkmark-circle" size={size} color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="admin"
+        options={{
+          title: "Admin",
+          href: currentUser?.role === 'admin' ? '/admin' : null,
+          tabBarIcon: ({ color, size }) => <Ionicons name="shield-checkmark" size={size} color={color} />,
         }}
       />
       <Tabs.Screen
