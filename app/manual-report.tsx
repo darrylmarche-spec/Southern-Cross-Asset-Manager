@@ -19,9 +19,7 @@ export default function ManualReportScreen() {
   const [projectName] = useState(currentProject?.projectName || '');
   const [preparedBy] = useState(currentUser?.username || '');
   const [subject, setSubject] = useState('');
-  const [findings, setFindings] = useState('');
-  const [recommendations, setRecommendations] = useState('');
-  const [additionalNotes, setAdditionalNotes] = useState('');
+  const [notes, setNotes] = useState('');
 
   const generateAndShare = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -69,23 +67,8 @@ export default function ManualReportScreen() {
       <div class="section-title">Subject</div>
       <div class="section-content">${subject || ''}</div>
 
-      <div class="section-title">Findings</div>
-      <div class="${findings ? 'section-content' : 'empty-content'}">${findings || ''}</div>
-
-      <div class="section-title">Recommendations</div>
-      <div class="${recommendations ? 'section-content' : 'empty-content'}">${recommendations || ''}</div>
-
-      <div class="section-title">Additional Notes</div>
-      <div class="${additionalNotes ? 'section-content' : 'empty-content'}">${additionalNotes || ''}</div>
-
-      <div class="sig-section">
-        <div class="sig-block">
-          <div class="sig-line">Signature - Commissioner</div>
-        </div>
-        <div class="sig-block">
-          <div class="sig-line">Signature - Reviewer</div>
-        </div>
-      </div>
+      <div class="section-title">Notes</div>
+      <div class="${notes ? 'section-content' : 'empty-content'}">${notes || ''}</div>
 
       <div class="footer">Schindler Southern Cross Crew - Confidential Report - ${reportDate}</div>
     </body></html>`;
@@ -144,36 +127,12 @@ export default function ManualReportScreen() {
         </View>
 
         <View style={styles.fieldCard}>
-          <Text style={styles.fieldLabel}>Findings</Text>
+          <Text style={styles.fieldLabel}>Notes</Text>
           <TextInput
             style={[styles.fieldInput, styles.textArea]}
-            value={findings}
-            onChangeText={setFindings}
-            placeholder="Describe findings and observations..."
-            placeholderTextColor={Colors.textTertiary}
-            multiline
-          />
-        </View>
-
-        <View style={styles.fieldCard}>
-          <Text style={styles.fieldLabel}>Recommendations</Text>
-          <TextInput
-            style={[styles.fieldInput, styles.textArea]}
-            value={recommendations}
-            onChangeText={setRecommendations}
-            placeholder="Enter recommendations..."
-            placeholderTextColor={Colors.textTertiary}
-            multiline
-          />
-        </View>
-
-        <View style={styles.fieldCard}>
-          <Text style={styles.fieldLabel}>Additional Notes</Text>
-          <TextInput
-            style={[styles.fieldInput, styles.textArea]}
-            value={additionalNotes}
-            onChangeText={setAdditionalNotes}
-            placeholder="Any additional notes or comments..."
+            value={notes}
+            onChangeText={setNotes}
+            placeholder="Enter report notes..."
             placeholderTextColor={Colors.textTertiary}
             multiline
           />
