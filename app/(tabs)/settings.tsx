@@ -17,6 +17,12 @@ export default function SettingsScreen() {
     router.replace('/');
   };
 
+  const canAddProject = React.useMemo(() => {
+    if (!currentUser) return false;
+    const username = currentUser.username.toLowerCase();
+    return currentUser.role === 'admin' || username === 'admin' || username === 'darryl';
+  }, [currentUser]);
+
   const handleDeleteProject = (id: string, name: string) => {
     if (Platform.OS === 'web') {
       if (confirm(`Delete project "${name}"? This cannot be undone.`)) {
@@ -56,15 +62,21 @@ export default function SettingsScreen() {
         <View style={styles.section}>
           <View style={styles.sectionHeaderRow}>
             <Text style={styles.sectionTitle}>Projects</Text>
-            {currentUser?.role === 'admin' && (
-              <Pressable
-                onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); router.push('/project-setup'); }}
-                style={({ pressed }) => [pressed && { opacity: 0.7 }]}
-              >
-                <Ionicons name="add-circle" size={28} color={Colors.primary} />
-              </Pressable>
+            {canAddProject && (
+              <View style={{ alignItems: 'flex-end' }}>
+                <Pressable
+                  onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); router.push('/project-setup'); }}
+                  style={({ pressed }) => [styles.addProjectBtn, pressed && { opacity: 0.7 }]}
+                >
+                  <Ionicons name="add" size={20} color="#FFF" />
+                  <Text style={styles.addProjectBtnText}>Add Project</Text>
+                </Pressable>
+              </View>
             )}
           </View>
+          {canAddProject && (
+            <Text style={styles.projectBtnDesc}>Set up a new escalator overhaul or commissioning project</Text>
+          )}
 
           {projects.length === 0 ? (
             <View style={styles.emptyProjects}>
@@ -131,6 +143,9 @@ const styles = StyleSheet.create({
   section: { marginHorizontal: 20, marginBottom: 24 },
   sectionHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
   sectionTitle: { fontSize: 18, fontFamily: 'Inter_700Bold', color: Colors.text },
+  addProjectBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: Colors.primary, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10 },
+  addProjectBtnText: { color: '#FFF', fontSize: 13, fontFamily: 'Inter_600SemiBold' },
+  projectBtnDesc: { fontSize: 12, fontFamily: 'Inter_400Regular', color: Colors.textTertiary, marginBottom: 12 },
   emptyProjects: { backgroundColor: Colors.surface, borderRadius: 14, padding: 24, alignItems: 'center' },
   emptyText: { fontSize: 14, fontFamily: 'Inter_400Regular', color: Colors.textSecondary },
   projectItem: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: Colors.surface, borderRadius: 14, padding: 14, marginBottom: 8 },

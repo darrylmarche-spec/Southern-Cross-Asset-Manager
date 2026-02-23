@@ -69,28 +69,16 @@ export default function DashboardScreen() {
           </View>
           <Text style={styles.emptyTitle}>No Project Selected</Text>
           <Text style={styles.emptySubtitle}>
-            {canAddProject 
-              ? 'Create a new project or select an existing one to get started'
+            {currentUser?.role === 'admin' 
+              ? 'Select an existing project from the settings page to get started'
               : 'Contact your administrator to be assigned to a project'}
           </Text>
-          {canAddProject && (
-            <View style={styles.addButtonWrapper}>
-              <Pressable
-                onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); router.push('/project-setup'); }}
-                style={({ pressed }) => [styles.createButton, pressed && { opacity: 0.85 }]}
-              >
-                <Ionicons name="add" size={22} color="#FFF" />
-                <Text style={styles.createButtonText}>Add Project</Text>
-              </Pressable>
-              <Text style={styles.buttonDesc}>Set up a new escalator overhaul or commissioning project</Text>
-            </View>
-          )}
           {projects.length > 0 && (
             <Pressable
               onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push('/(tabs)/settings'); }}
               style={({ pressed }) => [styles.selectButton, pressed && { opacity: 0.7 }]}
             >
-              <Text style={styles.selectButtonText}>Select Existing Project</Text>
+              <Text style={styles.selectButtonText}>Go to Settings</Text>
             </Pressable>
           )}
         </View>
@@ -110,14 +98,6 @@ export default function DashboardScreen() {
             <Text style={styles.greeting}>Hi, {currentUser?.username}</Text>
             <Text style={styles.projectTitle} numberOfLines={1}>{currentProject.projectName}</Text>
           </View>
-          {canAddProject && (
-            <Pressable 
-              onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push('/project-setup'); }}
-              style={styles.headerAddBtn}
-            >
-              <Ionicons name="add-circle" size={32} color={Colors.primary} />
-            </Pressable>
-          )}
         </View>
 
         <View style={styles.projectCard}>
