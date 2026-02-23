@@ -4,6 +4,7 @@ import * as SplashScreen from "expo-splash-screen";
 import React, { useEffect } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
+import { StatusBar } from "expo-status-bar";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { queryClient } from "@/lib/query-client";
 import { AppProvider } from "@/contexts/AppContext";
@@ -13,13 +14,16 @@ SplashScreen.preventAutoHideAsync();
 
 function RootLayoutNav() {
   return (
-    <Stack screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="index" />
-      <Stack.Screen name="(tabs)" />
-      <Stack.Screen name="project-setup" options={{ presentation: 'modal' }} />
-      <Stack.Screen name="task/[id]" options={{ presentation: 'card' }} />
-      <Stack.Screen name="manual-report" options={{ presentation: 'modal' }} />
-    </Stack>
+    <>
+      <StatusBar style="light" />
+      <Stack screenOptions={{ headerShown: false }}>
+        <Stack.Screen name="index" />
+        <Stack.Screen name="(tabs)" />
+        <Stack.Screen name="project-setup" options={{ presentation: 'modal' }} />
+        <Stack.Screen name="task/[id]" options={{ presentation: 'card' }} />
+        <Stack.Screen name="manual-report" options={{ presentation: 'modal' }} />
+      </Stack>
+    </>
   );
 }
 
