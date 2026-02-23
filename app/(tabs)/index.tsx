@@ -54,6 +54,12 @@ export default function DashboardScreen() {
       .reduce((sum, t) => sum + (parseFloat(t.actDuration) || 0), 0);
   }, [projectTasks]);
 
+  const canAddProject = useMemo(() => {
+    if (!currentUser) return false;
+    const username = currentUser.username.toLowerCase();
+    return currentUser.role === 'admin' || username === 'admin' || username === 'darryl';
+  }, [currentUser]);
+
   if (!currentProject) {
     return (
       <View style={[styles.emptyContainer, { paddingTop: insets.top + (Platform.OS === 'web' ? 67 : 0) }]}>
@@ -63,18 +69,21 @@ export default function DashboardScreen() {
           </View>
           <Text style={styles.emptyTitle}>No Project Selected</Text>
           <Text style={styles.emptySubtitle}>
-            {currentUser?.role === 'admin' 
+            {canAddProject 
               ? 'Create a new project or select an existing one to get started'
               : 'Contact your administrator to be assigned to a project'}
           </Text>
-          {currentUser?.role === 'admin' && (
-            <Pressable
-              onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); router.push('/project-setup'); }}
-              style={({ pressed }) => [styles.createButton, pressed && { opacity: 0.85 }]}
-            >
-              <Ionicons name="add" size={22} color="#FFF" />
-              <Text style={styles.createButtonText}>New Project</Text>
-            </Pressable>
+          {canAddProject && (
+            <View style={styles.addButtonWrapper}>
+              <Pressable
+                onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium); router.push('/project-setup'); }}
+                style={({ pressed }) => [styles.createButton, pressed && { opacity: 0.85 }]}
+              >
+                <Ionicons name="add" size={22} color="#FFF" />
+                <Text style={styles.createButtonText}>Add Project</Text>
+              </Pressable>
+              <Text style={styles.buttonDesc}>Set up a new escalator overhaul or commissioning project</Text>
+            </View>
           )}
           {projects.length > 0 && (
             <Pressable
@@ -101,8 +110,11 @@ export default function DashboardScreen() {
             <Text style={styles.greeting}>Hi, {currentUser?.username}</Text>
             <Text style={styles.projectTitle} numberOfLines={1}>{currentProject.projectName}</Text>
           </View>
-          {currentUser?.role === 'admin' && (
-            <Pressable onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push('/project-setup'); }}>
+          {canAddProject && (
+            <Pressable 
+              onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push('/project-setup'); }}
+              style={styles.headerAddBtn}
+            >
               <Ionicons name="add-circle" size={32} color={Colors.primary} />
             </Pressable>
           )}
@@ -215,15 +227,18 @@ const styles = StyleSheet.create({
   emptyContent: { alignItems: 'center', gap: 12 },
   emptyIcon: { width: 88, height: 88, borderRadius: 24, backgroundColor: Colors.surfaceSecondary, justifyContent: 'center', alignItems: 'center', marginBottom: 8 },
   emptyTitle: { fontSize: 22, fontFamily: 'Inter_700Bold', color: Colors.text },
-  emptySubtitle: { fontSize: 15, fontFamily: 'Inter_400Regular', color: Colors.textSecondary, textAlign: 'center', maxWidth: 280 },
-  createButton: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: Colors.primary, borderRadius: 14, paddingVertical: 14, paddingHorizontal: 24, marginTop: 8 },
+  emptySubtitle: { fontSize: 15, fontFamily: 'Inter_400Regular', color: Colors.textSecondary, textAlign: 'center', maxWidth: 280, marginBottom: 8 },
+  addButtonWrapper: { alignItems: 'center', gap: 8, marginTop: 8 },
+  createButton: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: Colors.primary, borderRadius: 14, paddingVertical: 14, paddingHorizontal: 24 },
   createButtonText: { fontSize: 16, fontFamily: 'Inter_600SemiBold', color: '#FFF' },
-  selectButton: { paddingVertical: 12, paddingHorizontal: 24 },
+  buttonDesc: { fontSize: 13, fontFamily: 'Inter_400Regular', color: Colors.textTertiary, textAlign: 'center', maxWidth: 240 },
+  selectButton: { paddingVertical: 12, paddingHorizontal: 24, marginTop: 4 },
   selectButtonText: { fontSize: 15, fontFamily: 'Inter_500Medium', color: Colors.primary },
   headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
   headerLeft: { flex: 1 },
   greeting: { fontSize: 14, fontFamily: 'Inter_500Medium', color: Colors.textSecondary, marginBottom: 2 },
   projectTitle: { fontSize: 24, fontFamily: 'Inter_700Bold', color: Colors.text },
+  headerAddBtn: { padding: 4 },
   projectCard: { backgroundColor: Colors.surface, borderRadius: 16, padding: 16, marginBottom: 16, gap: 12, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.04, shadowRadius: 8, elevation: 2 },
   projectCardRow: { flexDirection: 'row', gap: 16 },
   projectDetail: { flex: 1 },
