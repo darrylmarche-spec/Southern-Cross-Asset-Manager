@@ -20,7 +20,7 @@ export default function DashboardScreen() {
   const stats = useMemo(() => {
     const total = projectTasks.length;
     const completed = projectTasks.filter(t => t.status === 'completed').length;
-    const issues = projectTasks.filter(t => t.response === 'V' || t.response === 'O').length;
+    const issues = projectTasks.filter(t => t.response === 'no').length;
     const overdue = projectTasks.filter(t => {
       if (!t.dueDate || t.status === 'completed') return false;
       return new Date(t.dueDate) < new Date();
@@ -34,7 +34,7 @@ export default function DashboardScreen() {
       const sectionStates = projectTasks.filter(t => sectionTasks.some(st => st.uid === t.uid));
       const total = sectionStates.length;
       const completed = sectionStates.filter(t => t.status === 'completed').length;
-      const issues = sectionStates.filter(t => t.response === 'V' || t.response === 'O').length;
+      const issues = sectionStates.filter(t => t.response === 'no').length;
       const percent = total > 0 ? Math.round((completed / total) * 100) : 0;
       return { ...section, total, completed, issues, percent };
     });
@@ -134,7 +134,7 @@ export default function DashboardScreen() {
           </View>
           <View style={[styles.statCard, { backgroundColor: Colors.dangerLight }]}>
             <Text style={[styles.statNumber, { color: Colors.danger }]}>{stats.issues}</Text>
-            <Text style={styles.statLabel}>Issues</Text>
+            <Text style={styles.statLabel}>Items</Text>
           </View>
           <View style={[styles.statCard, { backgroundColor: Colors.warningLight }]}>
             <Text style={[styles.statNumber, { color: '#B45309' }]}>{stats.overdue}</Text>
@@ -191,7 +191,7 @@ export default function DashboardScreen() {
               />
             </View>
             <Text style={styles.sectionDetail}>
-              {section.completed}/{section.total} tasks{section.issues > 0 ? ` \u00B7 ${section.issues} issues` : ''}
+              {section.completed}/{section.total} tasks{section.issues > 0 ? ` \u00B7 ${section.issues} items` : ''}
             </Text>
           </Pressable>
         ))}
