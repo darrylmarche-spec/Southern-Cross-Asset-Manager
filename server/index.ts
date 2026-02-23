@@ -161,15 +161,6 @@ function serveLandingPage({
 }
 
 function configureExpoAndLanding(app: express.Application) {
-  const templatePath = path.resolve(
-    process.cwd(),
-    "server",
-    "templates",
-    "landing-page.html",
-  );
-  const landingPageTemplate = fs.readFileSync(templatePath, "utf-8");
-  const appName = getAppName();
-
   log("Serving static Expo files with dynamic manifest routing");
 
   app.use((req: Request, res: Response, next: NextFunction) => {
@@ -177,7 +168,7 @@ function configureExpoAndLanding(app: express.Application) {
       return next();
     }
 
-    // Serve manifest for mobile platforms
+    // Serve manifest for mobile platforms ONLY when expo-platform header is present
     const platform = req.header("expo-platform");
     if (platform && (platform === "ios" || platform === "android")) {
       if (req.path === "/" || req.path === "/manifest") {
@@ -186,14 +177,16 @@ function configureExpoAndLanding(app: express.Application) {
       return next();
     }
 
-    // Serve static web app for all other requests
-    const staticPath = path.resolve(process.cwd(), "public", req.path === "/" ? "index.html" : req.path.substring(1));
+    // For all other requests (web browsers), serve the static web app
+    const publicDir = path.resolve(process.cwd(), "public");
+    const staticPath = path.join(publicDir, req.path === "/" ? "index.html" : req.path);
+
     if (fs.existsSync(staticPath) && fs.statSync(staticPath).isFile()) {
       return res.sendFile(staticPath);
     }
 
-    // Fallback to index.html for SPA routing
-    const indexPath = path.resolve(process.cwd(), "public", "index.html");
+    // Fallback to index.html for SPA routing (important for expo-router web)
+    const indexPath = path.join(publicDir, "index.html");
     if (fs.existsSync(indexPath)) {
       return res.sendFile(indexPath);
     }
@@ -203,9 +196,6 @@ function configureExpoAndLanding(app: express.Application) {
 
   app.use("/assets", express.static(path.resolve(process.cwd(), "assets")));
   app.use(express.static(path.resolve(process.cwd(), "public")));
-  app.use(express.static(path.resolve(process.cwd(), "static-build")));
-
-  log("Expo routing: Checking expo-platform header on / and /manifest");
 }
 
 function setupErrorHandler(app: express.Application) {
