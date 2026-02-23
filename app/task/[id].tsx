@@ -8,7 +8,7 @@ import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import Colors from '@/constants/colors';
 import { useApp } from '@/contexts/AppContext';
-import { type Attachment } from '@/contexts/AppContext';
+import { type Attachment, type CommentAttachment } from '@/contexts/AppContext';
 import { ALL_TASKS, type ResponseValue } from '@/data/checklist-data';
 
 const RESPONSE_OPTIONS: { value: ResponseValue; label: string; color: string; bg: string }[] = [
@@ -41,6 +41,9 @@ export default function TaskDetailScreen() {
   const [showAssignPicker, setShowAssignPicker] = useState(false);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [showAttachMenu, setShowAttachMenu] = useState(false);
+  const [commentHistory, setCommentHistory] = useState<CommentAttachment[]>([]);
+  const [newComment, setNewComment] = useState('');
+  const [stagedAttachments, setStagedAttachments] = useState<Attachment[]>([]);
 
   useEffect(() => {
     if (taskState) {
@@ -52,6 +55,7 @@ export default function TaskDetailScreen() {
       setAssignedTo(taskState.assignedTo);
       setDueDate(taskState.dueDate);
       setAttachments(taskState.attachments || []);
+      setCommentHistory(taskState.commentHistory || []);
     }
   }, []);
 
@@ -70,10 +74,54 @@ export default function TaskDetailScreen() {
 
   const handleSave = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    updateTask(id, { actDuration, actLabor, comments, response, remarks, assignedTo, dueDate, attachments });
+    updateTask(id, { 
+      actDuration, 
+      actLabor, 
+      comments, 
+      response, 
+      remarks, 
+      assignedTo, 
+      dueDate, 
+      attachments,
+      commentHistory 
+    });
   };
 
-  const handleTakePhoto = async () => {
+  const handleAddComment = () => {
+    if (!newComment.trim() && stagedAttachments.length === 0) return;
+    
+    const comment: CommentAttachment = {
+      id: generateId(),
+      text: newComment,
+      attachments: stagedAttachments,
+      addedBy: currentUser?.username || 'Unknown',
+      addedAt: new Date().toISOString(),
+    };
+    
+    const updatedHistory = [comment, ...commentHistory];
+    setCommentHistory(updatedHistory);
+    setNewComment('');
+    setStagedAttachments([]);
+    updateTask(id, { commentHistory: updatedHistory });
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  };
+
+  const handleRemoveStagedAttachment = (attachId: string) => {
+    setStagedAttachments(prev => prev.filter(a => a.id !== attachId));
+  };
+
+  const handleAttachmentResult = (newAttachment: Attachment, isForComment: boolean = false) => {
+    if (isForComment) {
+      setStagedAttachments(prev => [...prev, newAttachment]);
+    } else {
+      const updated = [...attachments, newAttachment];
+      setAttachments(updated);
+      updateTask(id, { attachments: updated });
+    }
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  };
+
+  const handleTakePhoto = async (isForComment: boolean = false) => {
     setShowAttachMenu(false);
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
     if (status !== 'granted') {
@@ -96,14 +144,11 @@ export default function TaskDetailScreen() {
         mimeType: asset.mimeType || 'image/jpeg',
         addedAt: new Date().toISOString(),
       };
-      const updated = [...attachments, newAttachment];
-      setAttachments(updated);
-      updateTask(id, { attachments: updated });
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      handleAttachmentResult(newAttachment, isForComment);
     }
   };
 
-  const handlePickPhoto = async () => {
+  const handlePickPhoto = async (isForComment: boolean = false) => {
     setShowAttachMenu(false);
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
@@ -126,14 +171,11 @@ export default function TaskDetailScreen() {
         mimeType: asset.mimeType || 'image/jpeg',
         addedAt: new Date().toISOString(),
       };
-      const updated = [...attachments, newAttachment];
-      setAttachments(updated);
-      updateTask(id, { attachments: updated });
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      handleAttachmentResult(newAttachment, isForComment);
     }
   };
 
-  const handleUploadFile = async () => {
+  const handleUploadFile = async (isForComment: boolean = false) => {
     setShowAttachMenu(false);
     try {
       const result = await DocumentPicker.getDocumentAsync({
@@ -150,47 +192,50 @@ export default function TaskDetailScreen() {
           mimeType: asset.mimeType || 'application/octet-stream',
           addedAt: new Date().toISOString(),
         };
-        const updated = [...attachments, newAttachment];
-        setAttachments(updated);
-        updateTask(id, { attachments: updated });
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        handleAttachmentResult(newAttachment, isForComment);
       }
     } catch (e) {
       // user cancelled
     }
   };
 
-  const handleRemoveAttachment = (attachId: string) => {
-    const doRemove = () => {
-      const updated = attachments.filter(a => a.id !== attachId);
-      setAttachments(updated);
-      updateTask(id, { attachments: updated });
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    };
-    if (Platform.OS === 'web') {
-      if (confirm('Remove this attachment?')) doRemove();
-    } else {
-      Alert.alert('Remove Attachment', 'Are you sure you want to remove this?', [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Remove', style: 'destructive', onPress: doRemove },
-      ]);
-    }
-  };
-
-  const showAttachOptions = () => {
+  const showAttachOptions = (isForComment: boolean = false) => {
     if (Platform.OS === 'ios') {
       ActionSheetIOS.showActionSheetWithOptions(
         { options: ['Cancel', 'Take Photo', 'Photo Library', 'Upload File'], cancelButtonIndex: 0 },
         (index) => {
-          if (index === 1) handleTakePhoto();
-          else if (index === 2) handlePickPhoto();
-          else if (index === 3) handleUploadFile();
+          if (index === 1) handleTakePhoto(isForComment);
+          else if (index === 2) handlePickPhoto(isForComment);
+          else if (index === 3) handleUploadFile(isForComment);
         }
       );
     } else {
-      setShowAttachMenu(!showAttachMenu);
+      handlePickPhoto(isForComment);
     }
   };
+
+  const renderAttachment = (att: Attachment, onRemove?: (id: string) => void) => (
+    <View key={att.id} style={styles.attachItem}>
+      {att.type === 'photo' ? (
+        <Image source={{ uri: att.uri }} style={styles.attachThumb} />
+      ) : (
+        <View style={styles.attachFileIcon}>
+          <Ionicons name="document-text" size={24} color={Colors.primary} />
+        </View>
+      )}
+      <View style={styles.attachInfo}>
+        <Text style={styles.attachName} numberOfLines={1}>{att.name}</Text>
+        <Text style={styles.attachDate}>
+          {new Date(att.addedAt).toLocaleDateString()}
+        </Text>
+      </View>
+      {onRemove && (
+        <Pressable onPress={() => onRemove(att.id)} hitSlop={8}>
+          <Ionicons name="close-circle" size={22} color={Colors.danger} />
+        </Pressable>
+      )}
+    </View>
+  );
 
   const handleComplete = () => {
     handleSave();
@@ -385,12 +430,12 @@ export default function TaskDetailScreen() {
         </View>
 
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>{isOverhaul ? 'Comments' : 'Remarks'}</Text>
+          <Text style={styles.cardTitle}>Add New Comment & Attachments</Text>
           <TextInput
             style={[styles.fieldInput, styles.textArea]}
-            value={isOverhaul ? comments : remarks}
-            onChangeText={isOverhaul ? setComments : setRemarks}
-            placeholder={isOverhaul ? 'Add comments...' : 'Add remarks or findings...'}
+            value={newComment}
+            onChangeText={setNewComment}
+            placeholder="Add a new comment..."
             placeholderTextColor={Colors.textTertiary}
             multiline
             editable={!isCompleted}
@@ -398,62 +443,53 @@ export default function TaskDetailScreen() {
 
           <View style={styles.attachSection}>
             <View style={styles.attachHeader}>
-              <Text style={styles.attachLabel}>Attachments</Text>
+              <Text style={styles.attachLabel}>Staged Attachments</Text>
               {!isCompleted && (
-                <Pressable onPress={showAttachOptions} style={styles.attachAddBtn}>
+                <Pressable onPress={() => showAttachOptions(true)} style={styles.attachAddBtn}>
                   <Ionicons name="add-circle" size={22} color={Colors.primary} />
                   <Text style={styles.attachAddText}>Add</Text>
                 </Pressable>
               )}
             </View>
 
-            {showAttachMenu && Platform.OS !== 'ios' && (
-              <View style={styles.attachMenu}>
-                <Pressable onPress={handleTakePhoto} style={styles.attachMenuItem}>
-                  <Ionicons name="camera" size={20} color={Colors.primary} />
-                  <Text style={styles.attachMenuText}>Take Photo</Text>
-                </Pressable>
-                <Pressable onPress={handlePickPhoto} style={styles.attachMenuItem}>
-                  <Ionicons name="images" size={20} color={Colors.primary} />
-                  <Text style={styles.attachMenuText}>Photo Library</Text>
-                </Pressable>
-                <Pressable onPress={handleUploadFile} style={styles.attachMenuItem}>
-                  <Ionicons name="document" size={20} color={Colors.primary} />
-                  <Text style={styles.attachMenuText}>Upload File</Text>
-                </Pressable>
+            {stagedAttachments.length > 0 && (
+              <View style={styles.attachList}>
+                {stagedAttachments.map(att => renderAttachment(att, handleRemoveStagedAttachment))}
               </View>
             )}
 
-            {attachments.length > 0 ? (
-              <View style={styles.attachList}>
-                {attachments.map((att) => (
-                  <View key={att.id} style={styles.attachItem}>
-                    {att.type === 'photo' ? (
-                      <Image source={{ uri: att.uri }} style={styles.attachThumb} />
-                    ) : (
-                      <View style={styles.attachFileIcon}>
-                        <Ionicons name="document-text" size={24} color={Colors.primary} />
-                      </View>
-                    )}
-                    <View style={styles.attachInfo}>
-                      <Text style={styles.attachName} numberOfLines={1}>{att.name}</Text>
-                      <Text style={styles.attachDate}>
-                        {new Date(att.addedAt).toLocaleDateString()}
-                      </Text>
-                    </View>
-                    {!isCompleted && (
-                      <Pressable onPress={() => handleRemoveAttachment(att.id)} hitSlop={8}>
-                        <Ionicons name="close-circle" size={22} color={Colors.danger} />
-                      </Pressable>
-                    )}
-                  </View>
-                ))}
-              </View>
-            ) : (
-              <Text style={styles.attachEmpty}>No attachments added</Text>
-            )}
+            <Pressable
+              onPress={handleAddComment}
+              disabled={!newComment.trim() && stagedAttachments.length === 0}
+              style={[
+                styles.addCommentBtn,
+                (!newComment.trim() && stagedAttachments.length === 0) && { opacity: 0.5 }
+              ]}
+            >
+              <Text style={styles.addCommentBtnText}>Post Comment</Text>
+            </Pressable>
           </View>
         </View>
+
+        {commentHistory.length > 0 && (
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Comment History</Text>
+            {commentHistory.map((comment) => (
+              <View key={comment.id} style={styles.commentItem}>
+                <View style={styles.commentMeta}>
+                  <Text style={styles.commentAuthor}>{comment.addedBy}</Text>
+                  <Text style={styles.commentDate}>{new Date(comment.addedAt).toLocaleString()}</Text>
+                </View>
+                {!!comment.text && <Text style={styles.commentText}>{comment.text}</Text>}
+                {comment.attachments.length > 0 && (
+                  <View style={styles.commentAttachments}>
+                    {comment.attachments.map(att => renderAttachment(att))}
+                  </View>
+                )}
+              </View>
+            ))}
+          </View>
+        )}
 
         {!isCompleted ? (
           <Pressable
@@ -503,7 +539,7 @@ const styles = StyleSheet.create({
   readonlyField: { backgroundColor: Colors.surfaceSecondary, borderRadius: 10, paddingHorizontal: 14, height: 44, justifyContent: 'center' as const },
   readonlyText: { fontSize: 15, fontFamily: 'Inter_600SemiBold', color: Colors.text },
   fieldInput: { backgroundColor: Colors.background, borderRadius: 10, paddingHorizontal: 14, height: 44, fontSize: 15, fontFamily: 'Inter_400Regular', color: Colors.text, borderWidth: 1, borderColor: Colors.borderLight },
-  textArea: { height: 100, paddingTop: 12, textAlignVertical: 'top' as const },
+  textArea: { height: 80, paddingTop: 12, textAlignVertical: 'top' as const },
   responseGrid: { flexDirection: 'row', flexWrap: 'wrap' as const, gap: 8 },
   responseOption: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
@@ -518,23 +554,28 @@ const styles = StyleSheet.create({
   pickerItemActive: { backgroundColor: Colors.primaryLight },
   pickerItemText: { fontSize: 14, fontFamily: 'Inter_500Medium', color: Colors.text },
   completeButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: Colors.success, borderRadius: 14, height: 52, marginTop: 4 },
-  completeButtonText: { fontSize: 17, fontFamily: 'Inter_600SemiBold', color: '#FFF' },
-  reopenButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: Colors.warningLight, borderRadius: 14, height: 48, marginTop: 4 },
-  reopenButtonText: { fontSize: 15, fontFamily: 'Inter_600SemiBold', color: '#B45309' },
-  attachSection: { marginTop: 8, gap: 8 },
+  completeButtonText: { fontSize: 16, fontFamily: 'Inter_600SemiBold', color: '#FFF' },
+  reopenButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: Colors.surface, borderRadius: 14, height: 52, borderWidth: 1, borderColor: Colors.accent, marginTop: 4 },
+  reopenButtonText: { fontSize: 15, fontFamily: 'Inter_600SemiBold', color: Colors.accent },
+  attachSection: { gap: 10 },
   attachHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  attachLabel: { fontSize: 13, fontFamily: 'Inter_600SemiBold', color: Colors.textSecondary, textTransform: 'uppercase' as const, letterSpacing: 0.3 },
+  attachLabel: { fontSize: 13, fontFamily: 'Inter_600SemiBold', color: Colors.textSecondary },
   attachAddBtn: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   attachAddText: { fontSize: 14, fontFamily: 'Inter_600SemiBold', color: Colors.primary },
-  attachMenu: { backgroundColor: Colors.background, borderRadius: 12, borderWidth: 1, borderColor: Colors.borderLight, overflow: 'hidden' as const },
-  attachMenuItem: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: Colors.borderLight },
-  attachMenuText: { fontSize: 15, fontFamily: 'Inter_500Medium', color: Colors.text },
   attachList: { gap: 8 },
-  attachItem: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: Colors.background, borderRadius: 10, padding: 8, borderWidth: 1, borderColor: Colors.borderLight },
-  attachThumb: { width: 48, height: 48, borderRadius: 8 },
-  attachFileIcon: { width: 48, height: 48, borderRadius: 8, backgroundColor: Colors.primaryLight, alignItems: 'center', justifyContent: 'center' },
-  attachInfo: { flex: 1, gap: 2 },
-  attachName: { fontSize: 14, fontFamily: 'Inter_500Medium', color: Colors.text },
-  attachDate: { fontSize: 12, fontFamily: 'Inter_400Regular', color: Colors.textTertiary },
+  attachItem: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: Colors.background, padding: 8, borderRadius: 10, borderWidth: 1, borderColor: Colors.borderLight },
+  attachThumb: { width: 40, height: 40, borderRadius: 6 },
+  attachFileIcon: { width: 40, height: 40, borderRadius: 6, backgroundColor: Colors.primaryLight, alignItems: 'center', justifyContent: 'center' },
+  attachInfo: { flex: 1 },
+  attachName: { fontSize: 13, fontFamily: 'Inter_500Medium', color: Colors.text },
+  attachDate: { fontSize: 11, fontFamily: 'Inter_400Regular', color: Colors.textTertiary },
   attachEmpty: { fontSize: 13, fontFamily: 'Inter_400Regular', color: Colors.textTertiary, fontStyle: 'italic' as const },
+  addCommentBtn: { backgroundColor: Colors.primary, height: 44, borderRadius: 10, alignItems: 'center', justifyContent: 'center', marginTop: 8 },
+  addCommentBtnText: { color: '#FFF', fontSize: 14, fontFamily: 'Inter_600SemiBold' },
+  commentItem: { paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: Colors.borderLight },
+  commentMeta: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 },
+  commentAuthor: { fontSize: 13, fontFamily: 'Inter_700Bold', color: Colors.text },
+  commentDate: { fontSize: 11, fontFamily: 'Inter_400Regular', color: Colors.textTertiary },
+  commentText: { fontSize: 14, fontFamily: 'Inter_400Regular', color: Colors.text, marginBottom: 8 },
+  commentAttachments: { marginTop: 4, gap: 8 },
 });

@@ -42,6 +42,14 @@ export interface Attachment {
   addedAt: string;
 }
 
+export interface CommentAttachment {
+  id: string;
+  text: string;
+  attachments: Attachment[];
+  addedBy: string;
+  addedAt: string;
+}
+
 export interface TaskState {
   uid: string;
   projectId: string;
@@ -56,6 +64,7 @@ export interface TaskState {
   completedBy: string;
   completedAt: string;
   attachments?: Attachment[];
+  commentHistory?: CommentAttachment[];
 }
 
 interface AppContextValue {
