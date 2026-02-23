@@ -177,28 +177,32 @@ function configureExpoAndLanding(app: express.Application) {
       return next();
     }
 
-    if (req.path !== "/" && req.path !== "/manifest") {
+    // Serve manifest for mobile platforms
+    const platform = req.header("expo-platform");
+    if (platform && (platform === "ios" || platform === "android")) {
+      if (req.path === "/" || req.path === "/manifest") {
+        return serveExpoManifest(platform, res);
+      }
       return next();
     }
 
-    const platform = req.header("expo-platform");
-    if (platform && (platform === "ios" || platform === "android")) {
-      return serveExpoManifest(platform, res);
+    // Serve static web app for all other requests
+    const staticPath = path.resolve(process.cwd(), "public", req.path === "/" ? "index.html" : req.path.substring(1));
+    if (fs.existsSync(staticPath) && fs.statSync(staticPath).isFile()) {
+      return res.sendFile(staticPath);
     }
 
-    if (req.path === "/") {
-      return serveLandingPage({
-        req,
-        res,
-        landingPageTemplate,
-        appName,
-      });
+    // Fallback to index.html for SPA routing
+    const indexPath = path.resolve(process.cwd(), "public", "index.html");
+    if (fs.existsSync(indexPath)) {
+      return res.sendFile(indexPath);
     }
 
     next();
   });
 
   app.use("/assets", express.static(path.resolve(process.cwd(), "assets")));
+  app.use(express.static(path.resolve(process.cwd(), "public")));
   app.use(express.static(path.resolve(process.cwd(), "static-build")));
 
   log("Expo routing: Checking expo-platform header on / and /manifest");

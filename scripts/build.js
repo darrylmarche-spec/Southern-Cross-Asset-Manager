@@ -546,6 +546,21 @@ async function main() {
   console.log("Updating manifests and creating landing page...");
   updateManifests(manifests, timestamp, baseUrl, assetsByHash);
 
+  console.log("Building static web export...");
+  const webBuild = spawn("npx expo export --platform web --output-dir dist && rm -rf public && mv dist public", {
+    stdio: "inherit",
+    shell: true
+  });
+
+  await new Promise((resolve) => {
+    webBuild.on("exit", (code) => {
+      if (code !== 0) {
+        console.error("Web build failed with code", code);
+      }
+      resolve();
+    });
+  });
+
   console.log("Build complete! Deploy to:", baseUrl);
 
   if (metroProcess) {
