@@ -177,7 +177,6 @@ function configureExpoAndLanding(app: express.Application) {
       return next();
     }
 
-    // For all other requests (web browsers), serve the static web app
     const publicDir = path.resolve(process.cwd(), "public");
     const staticPath = path.join(publicDir, req.path === "/" ? "index.html" : req.path);
 
@@ -185,7 +184,6 @@ function configureExpoAndLanding(app: express.Application) {
       return res.sendFile(staticPath);
     }
 
-    // Fallback to index.html for SPA routing (important for expo-router web)
     const indexPath = path.join(publicDir, "index.html");
     if (fs.existsSync(indexPath)) {
       return res.sendFile(indexPath);
