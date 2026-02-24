@@ -67,6 +67,177 @@ export default function DashboardScreen() {
     return currentUser.role === 'admin' || username === 'admin' || username === 'darryl';
   }, [currentUser]);
 
+  const allStats = useMemo(() => {
+    const totalProjects = projects.length;
+    const allTaskStates = taskStates;
+    const completedTasks = allTaskStates.filter(t => t.status === 'completed').length;
+    const pendingTasks = allTaskStates.filter(t => t.status === 'pending').length;
+    const totalMembers = users.filter(u => u.role === 'member').length;
+    return { totalProjects, completedTasks, pendingTasks, totalMembers };
+  }, [projects, taskStates, users]);
+
+  const recentActivity = useMemo(() => {
+    const activity: { id: string, type: 'project' | 'task' | 'message', title: string, subtitle: string, time: Date }[] = [];
+    
+    // Recent projects
+    projects.slice(-3).forEach(p => {
+      activity.push({
+        id: `p-${p.id}`,
+        type: 'project',
+        title: 'New Project Created',
+        subtitle: p.projectName,
+        time: new Date(p.createdAt)
+      });
+    });
+
+    // Recent tasks
+    taskStates.filter(t => t.status === 'completed').slice(-3).forEach(t => {
+      const def = ALL_TASKS.find(d => d.uid === t.uid);
+      const proj = projects.find(p => p.id === t.projectId);
+      if (def && proj) {
+        activity.push({
+          id: `t-${t.uid}-${t.projectId}`,
+          type: 'task',
+          title: 'Task Completed',
+          subtitle: `${def.name} (${proj.projectName})`,
+          time: new Date() // Fallback since taskStates might not have completedAt
+        });
+      }
+    });
+
+    // Recent messages
+    adminMessages.slice(-3).forEach(m => {
+      activity.push({
+        id: `m-${m.id}`,
+        type: 'message',
+        title: m.type === 'parts_request' ? 'Parts Request' : 'New Message',
+        subtitle: `From ${m.sender}`,
+        time: new Date(m.sentAt)
+      });
+    });
+
+    return activity.sort((a, b) => b.time.getTime() - a.time.getTime()).slice(0, 5);
+  }, [projects, taskStates, adminMessages]);
+
+  if (!currentProject && isAdmin) {
+    return (
+      <View style={[styles.screen, { paddingTop: insets.top + (Platform.OS === 'web' ? 67 : 0) }]}>
+        <ScrollView 
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 20 }]}
+        >
+          <View style={styles.headerRow}>
+            <View style={styles.headerLeft}>
+              <Text style={styles.greeting}>Good day,</Text>
+              <Text style={styles.projectTitle}>{currentUser?.username}</Text>
+            </View>
+            <Pressable
+              onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push('/inbox'); }}
+              style={({ pressed }) => [styles.inboxButton, pressed && { opacity: 0.7 }]}
+            >
+              <Ionicons name="mail-outline" size={24} color={Colors.primary} />
+              {unreadCount > 0 && (
+                <View style={styles.inboxBadge}>
+                  <Text style={styles.inboxBadgeText}>{unreadCount}</Text>
+                </View>
+              )}
+            </Pressable>
+          </View>
+
+          <View style={styles.statsRow}>
+            <View style={[styles.statCard, { backgroundColor: Colors.primaryLight }]}>
+              <Text style={[styles.statNumber, { color: Colors.primary }]}>{allStats.totalProjects}</Text>
+              <Text style={styles.statLabel}>Projects</Text>
+            </View>
+            <View style={[styles.statCard, { backgroundColor: Colors.successLight }]}>
+              <Text style={[styles.statNumber, { color: Colors.success }]}>{allStats.completedTasks}</Text>
+              <Text style={styles.statLabel}>Completed</Text>
+            </View>
+            <View style={[styles.statCard, { backgroundColor: Colors.warningLight }]}>
+              <Text style={[styles.statNumber, { color: '#B45309' }]}>{allStats.pendingTasks}</Text>
+              <Text style={styles.statLabel}>Pending</Text>
+            </View>
+            <View style={[styles.statCard, { backgroundColor: 'rgba(59, 130, 246, 0.1)' }]}>
+              <Text style={[styles.statNumber, { color: '#2563EB' }]}>{allStats.totalMembers}</Text>
+              <Text style={styles.statLabel}>Team</Text>
+            </View>
+          </View>
+
+          <Text style={styles.sectionTitle}>Recent Inbox</Text>
+          <View style={styles.messageActions}>
+            {adminMessages.length === 0 ? (
+              <View style={styles.emptyInboxCard}>
+                <Ionicons name="mail-open-outline" size={32} color={Colors.textTertiary} />
+                <Text style={styles.emptyInboxText}>Inbox is empty</Text>
+              </View>
+            ) : (
+              adminMessages.slice(0, 3).map(msg => (
+                <Pressable
+                  key={msg.id}
+                  onPress={() => router.push('/inbox')}
+                  style={({ pressed }) => [styles.messageButton, pressed && { opacity: 0.7 }]}
+                >
+                  <View style={[styles.messageIconWrap, { backgroundColor: msg.type === 'parts_request' ? Colors.warningLight : Colors.primaryLight }]}>
+                    <Ionicons 
+                      name={msg.type === 'parts_request' ? 'construct-outline' : 'mail-outline'} 
+                      size={20} 
+                      color={msg.type === 'parts_request' ? '#B45309' : Colors.primary} 
+                    />
+                  </View>
+                  <View style={styles.messageButtonTextWrap}>
+                    <View style={styles.msgHeader}>
+                      <Text style={styles.messageButtonTitle}>{msg.sender}</Text>
+                      {!msg.read && <View style={styles.unreadDot} />}
+                    </View>
+                    <Text style={styles.messageButtonSub} numberOfLines={1}>{msg.content}</Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={16} color={Colors.textTertiary} />
+                </Pressable>
+              ))
+            )}
+            <Pressable 
+              onPress={() => router.push('/inbox')}
+              style={styles.viewAllBtn}
+            >
+              <Text style={styles.viewAllText}>View All Inbox</Text>
+            </Pressable>
+          </View>
+
+          <Text style={styles.sectionTitle}>Recent Activity</Text>
+          <View style={styles.activityCard}>
+            {recentActivity.length === 0 ? (
+              <Text style={styles.emptyActivityText}>No recent activity yet</Text>
+            ) : (
+              recentActivity.map((act, idx) => (
+                <View key={act.id} style={[styles.activityItem, idx === recentActivity.length - 1 && { borderBottomWidth: 0 }]}>
+                  <View style={[styles.activityIcon, { backgroundColor: act.type === 'project' ? Colors.primaryLight : act.type === 'task' ? Colors.successLight : Colors.warningLight }]}>
+                    <Ionicons 
+                      name={act.type === 'project' ? 'folder-outline' : act.type === 'task' ? 'checkmark-circle-outline' : 'mail-outline'} 
+                      size={16} 
+                      color={act.type === 'project' ? Colors.primary : act.type === 'task' ? Colors.success : '#B45309'} 
+                    />
+                  </View>
+                  <View style={styles.activityText}>
+                    <Text style={styles.activityTitle}>{act.title}</Text>
+                    <Text style={styles.activitySub}>{act.subtitle}</Text>
+                  </View>
+                </View>
+              ))
+            )}
+          </View>
+
+          <Pressable
+            onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push('/(tabs)/settings'); }}
+            style={({ pressed }) => [styles.createButton, { marginTop: 24 }, pressed && { opacity: 0.9 }]}
+          >
+            <Ionicons name="settings-outline" size={20} color="#FFF" />
+            <Text style={styles.createButtonText}>Go to Project Management</Text>
+          </Pressable>
+        </ScrollView>
+      </View>
+    );
+  }
+
   if (!currentProject) {
     return (
       <View style={[styles.emptyContainer, { paddingTop: insets.top + (Platform.OS === 'web' ? 67 : 0) }]}>
@@ -299,6 +470,19 @@ const styles = StyleSheet.create({
   inboxBadgeText: { color: '#fff', fontSize: 10, fontFamily: 'Inter_700Bold' },
   messageActions: { gap: 8, marginBottom: 24 },
   messageButton: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.surface, borderRadius: 14, padding: 14, gap: 12, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.03, shadowRadius: 4, elevation: 1 },
+  msgHeader: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  unreadDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: Colors.primary },
+  emptyInboxCard: { backgroundColor: Colors.surface, borderRadius: 14, padding: 24, alignItems: 'center', justifyContent: 'center', gap: 8, borderStyle: 'dashed', borderWidth: 1, borderColor: Colors.borderLight },
+  emptyInboxText: { fontSize: 14, fontFamily: 'Inter_400Regular', color: Colors.textTertiary },
+  viewAllBtn: { alignItems: 'center', paddingVertical: 8 },
+  viewAllText: { fontSize: 14, fontFamily: 'Inter_600SemiBold', color: Colors.primary },
+  activityCard: { backgroundColor: Colors.surface, borderRadius: 16, padding: 16, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.03, shadowRadius: 4, elevation: 1 },
+  activityItem: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: Colors.borderLight },
+  activityIcon: { width: 32, height: 32, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
+  activityText: { flex: 1 },
+  activityTitle: { fontSize: 14, fontFamily: 'Inter_600SemiBold', color: Colors.text },
+  activitySub: { fontSize: 12, fontFamily: 'Inter_400Regular', color: Colors.textSecondary },
+  emptyActivityText: { fontSize: 14, fontFamily: 'Inter_400Regular', color: Colors.textTertiary, textAlign: 'center', paddingVertical: 12 },
   messageIconWrap: { width: 40, height: 40, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   messageButtonTextWrap: { flex: 1 },
   messageButtonTitle: { fontSize: 15, fontFamily: 'Inter_600SemiBold', color: Colors.text },
