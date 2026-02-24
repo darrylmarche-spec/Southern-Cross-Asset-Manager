@@ -15,7 +15,7 @@ export default function AdminScreen() {
 
   const members = useMemo(() => users.filter(u => u.role === 'member'), [users]);
 
-  const handleAddMember = () => {
+  const handleAddMember = async () => {
     if (!newUsername.trim()) {
       Alert.alert('Error', 'Username is required');
       return;
@@ -25,10 +25,14 @@ export default function AdminScreen() {
       return;
     }
     
-    addUser(newUsername.trim(), 'member');
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    setNewUsername('');
-    Alert.alert('Success', `Account created for ${newUsername}. Default password is: password123`);
+    const success = await addUser(newUsername.trim(), 'member');
+    if (success) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setNewUsername('');
+      Alert.alert('Success', `Account created for ${newUsername}. Default password is: password123`);
+    } else {
+      Alert.alert('Error', 'Failed to create account. Please try again.');
+    }
   };
 
   const handleDeleteMember = (username: string) => {

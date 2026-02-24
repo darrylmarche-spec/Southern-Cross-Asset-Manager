@@ -18,6 +18,7 @@ export default function LoginScreen() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
+  const [loggingIn, setLoggingIn] = useState(false);
 
   useEffect(() => {
     if (!isLoading && currentUser) {
@@ -35,7 +36,7 @@ export default function LoginScreen() {
 
   if (currentUser) return null;
 
-  const handleLogin = () => {
+  const handleLogin = async () => {
     if (!username.trim()) {
       setError('Please enter your username');
       return;
@@ -44,13 +45,20 @@ export default function LoginScreen() {
       setError('Please enter your password');
       return;
     }
-    const success = login(username.trim(), password);
-    if (success) {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      router.replace('/(tabs)');
-    } else {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      setError('Invalid username or password');
+    setLoggingIn(true);
+    try {
+      const success = await login(username.trim(), password);
+      if (success) {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        router.replace('/(tabs)');
+      } else {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+        setError('Invalid username or password');
+      }
+    } catch (e) {
+      setError('Connection error. Please try again.');
+    } finally {
+      setLoggingIn(false);
     }
   };
 

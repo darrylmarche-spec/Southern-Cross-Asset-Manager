@@ -1,6 +1,20 @@
 import React, { createContext, useContext, useState, useEffect, useMemo, useCallback, ReactNode } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Platform } from 'react-native';
 import { ALL_TASKS, DEFAULT_USERS, type TaskDefinition, type ResponseValue } from '@/data/checklist-data';
+
+function getApiBaseUrl() {
+  const domain = typeof process !== 'undefined' && process.env?.EXPO_PUBLIC_DOMAIN;
+  if (domain) return `https://${domain}`;
+  if (Platform.OS === 'web') {
+    if (typeof window !== 'undefined' && window.location) {
+      return window.location.origin.replace(':8081', ':5000');
+    }
+  }
+  return 'http://localhost:5000';
+}
+
+const API_BASE = getApiBaseUrl();
 
 export interface UserAccount {
   username: string;
@@ -83,7 +97,7 @@ export interface TaskState {
 interface AppContextValue {
   currentUser: UserAccount | null;
   users: UserAccount[];
-  login: (username: string, password: string) => boolean;
+  login: (username: string, password: string) => Promise<boolean>;
   logout: () => void;
   projects: ProjectInfo[];
   currentProject: ProjectInfo | null;
@@ -101,8 +115,9 @@ interface AppContextValue {
   submittedReports: SubmittedReport[];
   submitReport: (report: Omit<SubmittedReport, 'id' | 'submittedAt' | 'status'>) => void;
   updateReport: (id: string, updates: Partial<SubmittedReport>) => void;
-  addUser: (username: string, role: 'admin' | 'member') => void;
-  deleteUser: (username: string) => void;
+  addUser: (username: string, role: 'admin' | 'member') => Promise<boolean>;
+  deleteUser: (username: string) => Promise<void>;
+  refreshUsers: () => Promise<void>;
   adminMessages: AdminMessage[];
   sendAdminMessage: (message: Omit<AdminMessage, 'id' | 'sentAt' | 'read'>) => void;
   markMessageRead: (id: string) => void;
@@ -156,6 +171,22 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (savedCurrentUser) setCurrentUser(JSON.parse(savedCurrentUser));
       if (savedReports) setSubmittedReports(JSON.parse(savedReports));
       if (savedMessages) setAdminMessages(JSON.parse(savedMessages));
+
+      try {
+        const res = await fetch(`${API_BASE}/api/users`);
+        if (res.ok) {
+          const serverUsers = await res.json();
+          const mapped: UserAccount[] = serverUsers.map((u: any) => ({
+            username: u.username,
+            password: '',
+            role: u.role as 'admin' | 'member',
+          }));
+          setUsers(mapped);
+          await AsyncStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(mapped));
+        }
+      } catch (e) {
+        console.log('Could not fetch users from server on load, using local cache');
+      }
     } catch (e) {
       console.error('Failed to load data:', e);
     } finally {
@@ -171,14 +202,54 @@ export function AppProvider({ children }: { children: ReactNode }) {
     await AsyncStorage.setItem(STORAGE_KEYS.PROJECTS, JSON.stringify(projs));
   }, []);
 
-  const login = useCallback((username: string, password: string): boolean => {
-    const user = users.find(u => u.username.toLowerCase() === username.toLowerCase() && u.password === password);
-    if (user) {
-      setCurrentUser(user);
-      AsyncStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(user));
-      return true;
+  const refreshUsers = useCallback(async () => {
+    try {
+      const res = await fetch(`${API_BASE}/api/users`);
+      if (res.ok) {
+        const serverUsers = await res.json();
+        const mapped: UserAccount[] = serverUsers.map((u: any) => ({
+          username: u.username,
+          password: '',
+          role: u.role as 'admin' | 'member',
+        }));
+        setUsers(mapped);
+        await AsyncStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(mapped));
+      }
+    } catch (e) {
+      console.log('Could not fetch users from server, using local cache');
     }
-    return false;
+  }, []);
+
+  const login = useCallback(async (username: string, password: string): Promise<boolean> => {
+    try {
+      const res = await fetch(`${API_BASE}/api/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        const user: UserAccount = {
+          username: data.username,
+          password: password,
+          role: data.role as 'admin' | 'member',
+        };
+        setCurrentUser(user);
+        await AsyncStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(user));
+        return true;
+      }
+      return false;
+    } catch (e) {
+      console.log('Server login failed, trying local fallback');
+      const user = users.find(u => u.username.toLowerCase() === username.toLowerCase() && u.password === password);
+      if (user) {
+        setCurrentUser(user);
+        AsyncStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(user));
+        return true;
+      }
+      return false;
+    }
   }, [users]);
 
   const logout = useCallback(() => {
@@ -265,20 +336,49 @@ export function AppProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
-  const addUser = useCallback((username: string, role: 'admin' | 'member') => {
-    setUsers(prev => {
-      const newUser: UserAccount = {
-        username,
-        password: 'password123', // Default password
-        role
-      };
-      const updated = [...prev, newUser];
-      AsyncStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(updated));
-      return updated;
-    });
+  const addUser = useCallback(async (username: string, role: 'admin' | 'member'): Promise<boolean> => {
+    try {
+      const res = await fetch(`${API_BASE}/api/users`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, role }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        const newUser: UserAccount = {
+          username: data.username,
+          password: 'password123',
+          role: data.role as 'admin' | 'member',
+        };
+        setUsers(prev => {
+          const updated = [...prev, newUser];
+          AsyncStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(updated));
+          return updated;
+        });
+        return true;
+      }
+      return false;
+    } catch (e) {
+      console.log('Server addUser failed, adding locally');
+      const newUser: UserAccount = { username, password: 'password123', role };
+      setUsers(prev => {
+        const updated = [...prev, newUser];
+        AsyncStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(updated));
+        return updated;
+      });
+      return true;
+    }
   }, []);
 
-  const deleteUser = useCallback((username: string) => {
+  const deleteUser = useCallback(async (username: string): Promise<void> => {
+    try {
+      await fetch(`${API_BASE}/api/users/${encodeURIComponent(username)}`, {
+        method: 'DELETE',
+      });
+    } catch (e) {
+      console.log('Server deleteUser failed, deleting locally');
+    }
     setUsers(prev => {
       const updated = prev.filter(u => u.username !== username);
       AsyncStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(updated));
@@ -366,10 +466,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
     updateReport,
     addUser,
     deleteUser,
+    refreshUsers,
     adminMessages,
     sendAdminMessage,
     markMessageRead,
-  }), [currentUser, users, login, logout, projects, currentProject, createProject, selectProject, deleteProject, taskStates, updateTask, completeTask, getTaskState, getTaskDef, isLoading, focusSection, submittedReports, submitReport, updateReport, addUser, deleteUser, adminMessages, sendAdminMessage, markMessageRead]);
+  }), [currentUser, users, login, logout, projects, currentProject, createProject, selectProject, deleteProject, taskStates, updateTask, completeTask, getTaskState, getTaskDef, isLoading, focusSection, submittedReports, submitReport, updateReport, addUser, deleteUser, refreshUsers, adminMessages, sendAdminMessage, markMessageRead]);
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
 }
