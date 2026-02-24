@@ -50,6 +50,19 @@ export interface CommentAttachment {
   addedAt: string;
 }
 
+export interface AdminMessage {
+  id: string;
+  type: 'message' | 'parts_request';
+  projectId: string;
+  projectName: string;
+  senderUsername: string;
+  subject: string;
+  body: string;
+  attachments: Attachment[];
+  sentAt: string;
+  read: boolean;
+}
+
 export interface TaskState {
   uid: string;
   projectId: string;
@@ -90,6 +103,9 @@ interface AppContextValue {
   updateReport: (id: string, updates: Partial<SubmittedReport>) => void;
   addUser: (username: string, role: 'admin' | 'member') => void;
   deleteUser: (username: string) => void;
+  adminMessages: AdminMessage[];
+  sendAdminMessage: (message: Omit<AdminMessage, 'id' | 'sentAt' | 'read'>) => void;
+  markMessageRead: (id: string) => void;
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
@@ -101,6 +117,7 @@ const STORAGE_KEYS = {
   TASK_STATES: '@schindler_task_states',
   CURRENT_USER: '@schindler_current_user',
   SUBMITTED_REPORTS: '@schindler_submitted_reports',
+  ADMIN_MESSAGES: '@schindler_admin_messages',
 };
 
 export function AppProvider({ children }: { children: ReactNode }) {
@@ -112,6 +129,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const [focusSection, setFocusSection] = useState<number | null>(null);
   const [submittedReports, setSubmittedReports] = useState<SubmittedReport[]>([]);
+  const [adminMessages, setAdminMessages] = useState<AdminMessage[]>([]);
 
   useEffect(() => {
     loadData();
@@ -119,13 +137,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const loadData = async () => {
     try {
-      const [savedUsers, savedProjects, savedCurrentProject, savedTaskStates, savedCurrentUser, savedReports] = await Promise.all([
+      const [savedUsers, savedProjects, savedCurrentProject, savedTaskStates, savedCurrentUser, savedReports, savedMessages] = await Promise.all([
         AsyncStorage.getItem(STORAGE_KEYS.USERS),
         AsyncStorage.getItem(STORAGE_KEYS.PROJECTS),
         AsyncStorage.getItem(STORAGE_KEYS.CURRENT_PROJECT),
         AsyncStorage.getItem(STORAGE_KEYS.TASK_STATES),
         AsyncStorage.getItem(STORAGE_KEYS.CURRENT_USER),
         AsyncStorage.getItem(STORAGE_KEYS.SUBMITTED_REPORTS),
+        AsyncStorage.getItem(STORAGE_KEYS.ADMIN_MESSAGES),
       ]);
 
       if (savedUsers) setUsers(JSON.parse(savedUsers));
@@ -136,6 +155,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (savedTaskStates) setTaskStates(JSON.parse(savedTaskStates));
       if (savedCurrentUser) setCurrentUser(JSON.parse(savedCurrentUser));
       if (savedReports) setSubmittedReports(JSON.parse(savedReports));
+      if (savedMessages) setAdminMessages(JSON.parse(savedMessages));
     } catch (e) {
       console.error('Failed to load data:', e);
     } finally {
@@ -266,6 +286,28 @@ export function AppProvider({ children }: { children: ReactNode }) {
     });
   }, []);
 
+  const sendAdminMessage = useCallback((message: Omit<AdminMessage, 'id' | 'sentAt' | 'read'>) => {
+    const newMessage: AdminMessage = {
+      ...message,
+      id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+      sentAt: new Date().toISOString(),
+      read: false,
+    };
+    setAdminMessages(prev => {
+      const updated = [...prev, newMessage];
+      AsyncStorage.setItem(STORAGE_KEYS.ADMIN_MESSAGES, JSON.stringify(updated));
+      return updated;
+    });
+  }, []);
+
+  const markMessageRead = useCallback((id: string) => {
+    setAdminMessages(prev => {
+      const updated = prev.map(m => m.id === id ? { ...m, read: true } : m);
+      AsyncStorage.setItem(STORAGE_KEYS.ADMIN_MESSAGES, JSON.stringify(updated));
+      return updated;
+    });
+  }, []);
+
   const updateTask = useCallback((uid: string, updates: Partial<TaskState>) => {
     if (!currentProject) return;
     setTaskStates(prev => {
@@ -324,7 +366,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     updateReport,
     addUser,
     deleteUser,
-  }), [currentUser, users, login, logout, projects, currentProject, createProject, selectProject, deleteProject, taskStates, updateTask, completeTask, getTaskState, getTaskDef, isLoading, focusSection, submittedReports, submitReport, updateReport, addUser, deleteUser]);
+    adminMessages,
+    sendAdminMessage,
+    markMessageRead,
+  }), [currentUser, users, login, logout, projects, currentProject, createProject, selectProject, deleteProject, taskStates, updateTask, completeTask, getTaskState, getTaskDef, isLoading, focusSection, submittedReports, submitReport, updateReport, addUser, deleteUser, adminMessages, sendAdminMessage, markMessageRead]);
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
 }
