@@ -10,7 +10,7 @@ import { ALL_TASKS, SECTIONS } from '@/data/checklist-data';
 
 export default function DashboardScreen() {
   const insets = useSafeAreaInsets();
-  const { currentProject, currentUser, taskStates, projects, setFocusSection, adminMessages } = useApp();
+  const { currentProject, currentUser, taskStates, projects, setFocusSection, adminMessages, users } = useApp();
 
   const isAdmin = useMemo(() => {
     if (!currentUser) return false;
