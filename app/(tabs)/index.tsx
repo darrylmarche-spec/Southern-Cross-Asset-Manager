@@ -10,7 +10,14 @@ import { ALL_TASKS, SECTIONS } from '@/data/checklist-data';
 
 export default function DashboardScreen() {
   const insets = useSafeAreaInsets();
-  const { currentProject, currentUser, taskStates, projects, setFocusSection } = useApp();
+  const { currentProject, currentUser, taskStates, projects, setFocusSection, adminMessages } = useApp();
+
+  const isAdmin = useMemo(() => {
+    if (!currentUser) return false;
+    return currentUser.role === 'admin';
+  }, [currentUser]);
+
+  const unreadCount = useMemo(() => adminMessages.filter(m => !m.read).length, [adminMessages]);
 
   const projectTasks = useMemo(() => {
     if (!currentProject) return [];
@@ -98,6 +105,19 @@ export default function DashboardScreen() {
             <Text style={styles.greeting}>Hi, {currentUser?.username}</Text>
             <Text style={styles.projectTitle} numberOfLines={1}>{currentProject.projectName}</Text>
           </View>
+          {isAdmin && (
+            <Pressable
+              onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push('/inbox'); }}
+              style={({ pressed }) => [styles.inboxButton, pressed && { opacity: 0.7 }]}
+            >
+              <Ionicons name="mail-outline" size={22} color={Colors.primary} />
+              {unreadCount > 0 && (
+                <View style={styles.inboxBadge}>
+                  <Text style={styles.inboxBadgeText}>{unreadCount}</Text>
+                </View>
+              )}
+            </Pressable>
+          )}
         </View>
 
         <View style={styles.projectCard}>
@@ -163,6 +183,37 @@ export default function DashboardScreen() {
             </View>
           </View>
         </View>
+
+        {!isAdmin && (
+          <View style={styles.messageActions}>
+            <Pressable
+              onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push({ pathname: '/compose-message', params: { type: 'message' } }); }}
+              style={({ pressed }) => [styles.messageButton, pressed && { opacity: 0.7 }]}
+            >
+              <View style={[styles.messageIconWrap, { backgroundColor: Colors.primaryLight }]}>
+                <Ionicons name="mail-outline" size={20} color={Colors.primary} />
+              </View>
+              <View style={styles.messageButtonTextWrap}>
+                <Text style={styles.messageButtonTitle}>Message Admin</Text>
+                <Text style={styles.messageButtonSub}>Send a message to the admin team</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color={Colors.textTertiary} />
+            </Pressable>
+            <Pressable
+              onPress={() => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light); router.push({ pathname: '/compose-message', params: { type: 'parts_request' } }); }}
+              style={({ pressed }) => [styles.messageButton, pressed && { opacity: 0.7 }]}
+            >
+              <View style={[styles.messageIconWrap, { backgroundColor: Colors.warningLight }]}>
+                <Ionicons name="construct-outline" size={20} color="#B45309" />
+              </View>
+              <View style={styles.messageButtonTextWrap}>
+                <Text style={styles.messageButtonTitle}>Parts Request</Text>
+                <Text style={styles.messageButtonSub}>Request parts with photos</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color={Colors.textTertiary} />
+            </Pressable>
+          </View>
+        )}
 
         <Text style={styles.sectionTitle}>Progress by Section</Text>
         {sectionStats.map((section) => (
@@ -243,4 +294,13 @@ const styles = StyleSheet.create({
   progressBarBg: { height: 6, backgroundColor: Colors.surfaceSecondary, borderRadius: 3, overflow: 'hidden' as const, marginBottom: 6 },
   progressBarFill: { height: 6, borderRadius: 3 },
   sectionDetail: { fontSize: 12, fontFamily: 'Inter_400Regular', color: Colors.textSecondary },
+  inboxButton: { position: 'relative', padding: 8 },
+  inboxBadge: { position: 'absolute', top: 2, right: 2, backgroundColor: Colors.primary, borderRadius: 9, minWidth: 18, height: 18, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4 },
+  inboxBadgeText: { color: '#fff', fontSize: 10, fontFamily: 'Inter_700Bold' },
+  messageActions: { gap: 8, marginBottom: 24 },
+  messageButton: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.surface, borderRadius: 14, padding: 14, gap: 12, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.03, shadowRadius: 4, elevation: 1 },
+  messageIconWrap: { width: 40, height: 40, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  messageButtonTextWrap: { flex: 1 },
+  messageButtonTitle: { fontSize: 15, fontFamily: 'Inter_600SemiBold', color: Colors.text },
+  messageButtonSub: { fontSize: 12, fontFamily: 'Inter_400Regular', color: Colors.textSecondary, marginTop: 1 },
 });
