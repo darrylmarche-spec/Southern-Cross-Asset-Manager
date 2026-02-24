@@ -204,7 +204,7 @@ export default function ComposeMessageScreen() {
               style={({ pressed }) => [styles.attachButton, pressed && { opacity: 0.7 }]}
             >
               <Ionicons name="images-outline" size={22} color={Colors.primary} />
-              <Text style={styles.attachButtonText}>Photo Library</Text>
+              <Text style={styles.attachButtonText}>Add File</Text>
             </Pressable>
             {Platform.OS !== 'web' && (
               <Pressable
