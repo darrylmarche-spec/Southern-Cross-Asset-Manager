@@ -27,7 +27,10 @@ export default function ProjectSetupScreen() {
   const [assignedMembers, setAssignedMembers] = useState<string[]>(editingProject?.assignedMembers || []);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  const members = useMemo(() => users.filter(u => u.role === 'member'), [users]);
+  const members = useMemo(() => {
+    // Both 'member' role and Darryl (even if admin) should be assignable
+    return users.filter(u => u.role === 'member' || u.username.toLowerCase() === 'darryl');
+  }, [users]);
 
   const toggleMember = (username: string) => {
     Haptics.selectionAsync();
