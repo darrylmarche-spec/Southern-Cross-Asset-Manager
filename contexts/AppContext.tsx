@@ -98,7 +98,7 @@ interface AppContextValue {
   currentUser: UserAccount | null;
   users: UserAccount[];
   login: (username: string, password: string) => Promise<boolean>;
-  logout: () => void;
+  logout: () => Promise<void>;
   projects: ProjectInfo[];
   currentProject: ProjectInfo | null;
   createProject: (project: Omit<ProjectInfo, 'id' | 'createdAt' | 'createdBy'>) => void;
@@ -343,11 +343,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }, [users]);
 
-  const logout = useCallback(() => {
+  const logout = useCallback(async () => {
     setCurrentUser(null);
     setCurrentProject(null);
-    AsyncStorage.removeItem(STORAGE_KEYS.CURRENT_USER);
-    AsyncStorage.removeItem(STORAGE_KEYS.CURRENT_PROJECT);
+    await AsyncStorage.multiRemove([STORAGE_KEYS.CURRENT_USER, STORAGE_KEYS.CURRENT_PROJECT]);
   }, []);
 
   const createProject = useCallback(async (project: Omit<ProjectInfo, 'id' | 'createdAt' | 'createdBy'>) => {

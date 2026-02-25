@@ -11,10 +11,11 @@ export default function SettingsScreen() {
   const insets = useSafeAreaInsets();
   const { currentUser, logout, projects, currentProject, selectProject, deleteProject, users } = useApp();
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     if (Platform.OS === 'web') {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-      logout();
+      await logout();
+      window.location.replace('/');
     } else {
       Alert.alert(
         'Log Out',
