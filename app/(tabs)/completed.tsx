@@ -1,10 +1,8 @@
 import React, { useMemo, useState } from 'react';
-import { View, Text, FlatList, Pressable, StyleSheet, Platform, Alert, Share } from 'react-native';
+import { View, Text, FlatList, Pressable, StyleSheet, Platform } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
-import * as Print from 'expo-print';
-import * as Sharing from 'expo-sharing';
 import Colors from '@/constants/colors';
 import { useApp } from '@/contexts/AppContext';
 import { ALL_TASKS, SECTIONS } from '@/data/checklist-data';
@@ -12,8 +10,10 @@ import { router } from 'expo-router';
 
 export default function CompletedScreen() {
   const insets = useSafeAreaInsets();
-  const { currentProject, currentUser, taskStates, getTaskState, submitReport } = useApp();
+  const { currentProject, currentUser, taskStates, submitReport } = useApp();
   const [filterSection, setFilterSection] = useState<number | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
 
   const completedTasks = useMemo(() => {
     if (!currentProject) return [];
@@ -29,8 +29,9 @@ export default function CompletedScreen() {
   }, [currentProject, taskStates, filterSection]);
 
   const generatePdf = async () => {
-    if (!currentProject) return;
+    if (!currentProject || submitting) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setSubmitting(true);
 
     const projectStates = taskStates.filter(t => t.projectId === currentProject.id);
     const completedStates = projectStates.filter(t => t.status === 'completed');
@@ -104,17 +105,18 @@ export default function CompletedScreen() {
     </body></html>`;
 
     try {
-      // Automatically "send" to admin by storing it
-      submitReport({
+      await submitReport({
         projectId: currentProject.id,
         submittedBy: currentUser?.username || 'Unknown',
         type: 'generate',
         content: html,
         subject: `${currentProject.projectName} - Commissioning Report`,
       });
-      Alert.alert('Report Submitted', 'The report has been saved to the admin reports section.');
+      setSubmitting(false);
+      setSubmitted(true);
+      setTimeout(() => setSubmitted(false), 2500);
     } catch (e) {
-      console.error('PDF error:', e);
+      setSubmitting(false);
     }
   };
 
@@ -137,20 +139,43 @@ export default function CompletedScreen() {
       </View>
 
       <View style={styles.centralButtons}>
-        <Pressable 
-          onPress={() => router.push('/manual-report')} 
+        <Pressable
+          onPress={() => router.push('/manual-report')}
           style={({ pressed }) => [styles.largeReportButton, pressed && { opacity: 0.8, transform: [{ scale: 0.98 }] }]}
         >
           <Ionicons name="create" size={24} color="#FFF" />
           <Text style={styles.largeReportButtonText}>Manual Report</Text>
         </Pressable>
-        <Pressable 
-          onPress={generatePdf} 
-          style={({ pressed }) => [styles.largeReportButton, styles.secondaryLargeButton, pressed && { opacity: 0.8, transform: [{ scale: 0.98 }] }]}
-        >
-          <Ionicons name="document-text" size={24} color={Colors.primary} />
-          <Text style={[styles.largeReportButtonText, { color: Colors.primary }]}>Generate Report</Text>
-        </Pressable>
+
+        <View style={{ width: '100%', pointerEvents: submitting ? 'none' : 'auto' } as any}>
+          <Pressable
+            onPress={generatePdf}
+            style={({ pressed }) => [
+              styles.largeReportButton,
+              styles.secondaryLargeButton,
+              submitted && styles.successLargeButton,
+              submitting && { opacity: 0.6 },
+              !submitting && !submitted && pressed && { opacity: 0.8, transform: [{ scale: 0.98 }] },
+            ]}
+          >
+            {submitting ? (
+              <>
+                <Ionicons name="cloud-upload-outline" size={24} color={Colors.primary} />
+                <Text style={[styles.largeReportButtonText, { color: Colors.primary }]}>Submitting...</Text>
+              </>
+            ) : submitted ? (
+              <>
+                <Ionicons name="checkmark-circle" size={24} color={Colors.success} />
+                <Text style={[styles.largeReportButtonText, { color: Colors.success }]}>Report Saved</Text>
+              </>
+            ) : (
+              <>
+                <Ionicons name="document-text" size={24} color={Colors.primary} />
+                <Text style={[styles.largeReportButtonText, { color: Colors.primary }]}>Generate Report</Text>
+              </>
+            )}
+          </Pressable>
+        </View>
       </View>
 
       <View style={styles.filterRow}>
@@ -219,20 +244,20 @@ const styles = StyleSheet.create({
   headerTitle: { fontSize: 28, fontFamily: 'Inter_700Bold', color: Colors.text },
   headerCount: { fontSize: 14, fontFamily: 'Inter_400Regular', color: Colors.textSecondary },
   centralButtons: { paddingHorizontal: 20, paddingVertical: 16, gap: 12, alignItems: 'center' },
-  largeReportButton: { 
-    flexDirection: 'row', 
-    alignItems: 'center', 
+  largeReportButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
     justifyContent: 'center',
-    gap: 12, 
-    backgroundColor: Colors.primary, 
-    borderRadius: 16, 
+    gap: 12,
+    backgroundColor: Colors.primary,
+    borderRadius: 16,
     width: '100%',
     height: 56,
     shadowColor: Colors.primary,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2,
     shadowRadius: 8,
-    elevation: 4
+    elevation: 4,
   },
   secondaryLargeButton: {
     backgroundColor: Colors.primaryLight,
@@ -240,10 +265,16 @@ const styles = StyleSheet.create({
     borderColor: Colors.primary,
     shadowColor: 'transparent',
   },
-  largeReportButtonText: { 
-    fontSize: 17, 
-    fontFamily: 'Inter_700Bold', 
-    color: '#FFF' 
+  successLargeButton: {
+    backgroundColor: Colors.success + '15',
+    borderWidth: 1.5,
+    borderColor: Colors.success,
+    shadowColor: 'transparent',
+  },
+  largeReportButtonText: {
+    fontSize: 17,
+    fontFamily: 'Inter_700Bold',
+    color: '#FFF',
   },
   filterRow: { flexDirection: 'row', paddingHorizontal: 16, paddingVertical: 8, gap: 6, flexWrap: 'wrap' as const },
   filterChip: { backgroundColor: Colors.surface, borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6, borderWidth: 1, borderColor: Colors.borderLight },

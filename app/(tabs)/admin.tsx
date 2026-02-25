@@ -4,6 +4,7 @@ import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons, Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
+import * as Print from 'expo-print';
 import Colors from '@/constants/colors';
 import { useApp, UserAccount, SubmittedReport } from '@/contexts/AppContext';
 
@@ -122,6 +123,22 @@ export default function AdminScreen() {
     </View>
   );
 
+  const handleOpenReport = async (report: SubmittedReport) => {
+    if (Platform.OS === 'web') {
+      const w = window.open('', '_blank');
+      if (w) {
+        w.document.write(report.content);
+        w.document.close();
+      }
+    } else {
+      try {
+        await Print.printAsync({ html: report.content });
+      } catch (error) {
+        console.error(error);
+      }
+    }
+  };
+
   const handleShareReport = async (report: SubmittedReport) => {
     try {
       await Share.share({
@@ -144,7 +161,7 @@ export default function AdminScreen() {
         submittedReports.map(report => (
           <View key={report.id} style={styles.reportCard}>
             <View style={styles.reportHeader}>
-              <View>
+              <View style={{ flex: 1, marginRight: 8 }}>
                 <Text style={styles.reportTitle}>{report.subject || 'Project Report'}</Text>
                 <Text style={styles.reportMeta}>By {report.submittedBy} • {new Date(report.submittedAt).toLocaleDateString()}</Text>
               </View>
@@ -158,9 +175,16 @@ export default function AdminScreen() {
             <View style={styles.reportActions}>
               <Pressable 
                 style={styles.secondaryButton}
+                onPress={() => handleOpenReport(report)}
+              >
+                <Ionicons name="eye-outline" size={18} color={Colors.primary} />
+                <Text style={[styles.secondaryButtonText, { color: Colors.primary }]}>View</Text>
+              </Pressable>
+              <Pressable 
+                style={styles.secondaryButton}
                 onPress={() => updateReport(report.id, { status: 'reviewed' })}
               >
-                <Ionicons name="checkmark-done" size={18} color={Colors.primary} />
+                <Ionicons name="checkmark-done" size={18} color={Colors.text} />
                 <Text style={styles.secondaryButtonText}>Mark Reviewed</Text>
               </Pressable>
               <Pressable 
@@ -228,12 +252,12 @@ const styles = StyleSheet.create({
   content: { paddingHorizontal: 20 },
   section: { gap: 16 },
   subTitle: { fontSize: 18, fontFamily: 'Inter_600SemiBold', color: Colors.text, marginTop: 8 },
-  card: { backgroundColor: Colors.surface, borderRadius: 16, padding: 16, gap: 12, borderWeight: 1, borderColor: Colors.borderLight },
+  card: { backgroundColor: Colors.surface, borderRadius: 16, padding: 16, gap: 12, borderWidth: 1, borderColor: Colors.borderLight },
   cardTitle: { fontSize: 16, fontFamily: 'Inter_600SemiBold', color: Colors.text },
   input: { backgroundColor: Colors.background, borderRadius: 12, height: 48, paddingHorizontal: 16, fontSize: 15, fontFamily: 'Inter_400Regular', color: Colors.text, borderWidth: 1, borderColor: Colors.borderLight },
   primaryButton: { backgroundColor: Colors.primary, borderRadius: 12, height: 48, alignItems: 'center', justifyContent: 'center' },
   primaryButtonText: { color: '#FFF', fontSize: 16, fontFamily: 'Inter_600SemiBold' },
-  listItem: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: Colors.surface, padding: 16, borderRadius: 16, borderWeight: 1, borderColor: Colors.borderLight },
+  listItem: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: Colors.surface, padding: 16, borderRadius: 16, borderWidth: 1, borderColor: Colors.borderLight },
   listItemInfo: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   avatar: { width: 32, height: 32, borderRadius: 16, backgroundColor: Colors.primary + '20', alignItems: 'center', justifyContent: 'center' },
   avatarText: { fontSize: 14, fontFamily: 'Inter_600SemiBold', color: Colors.primary },
@@ -243,12 +267,12 @@ const styles = StyleSheet.create({
   iconButton: { padding: 4 },
   emptyState: { alignItems: 'center', justifyContent: 'center', paddingVertical: 60, gap: 12 },
   emptyStateText: { fontSize: 16, fontFamily: 'Inter_500Medium', color: Colors.textSecondary },
-  reportCard: { backgroundColor: Colors.surface, borderRadius: 16, padding: 16, gap: 12, borderWeight: 1, borderColor: Colors.borderLight },
+  reportCard: { backgroundColor: Colors.surface, borderRadius: 16, padding: 16, gap: 12, borderWidth: 1, borderColor: Colors.borderLight },
   reportHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
   reportTitle: { fontSize: 16, fontFamily: 'Inter_600SemiBold', color: Colors.text },
   reportMeta: { fontSize: 12, fontFamily: 'Inter_400Regular', color: Colors.textSecondary },
   reportNotes: { fontSize: 14, fontFamily: 'Inter_400Regular', color: Colors.textSecondary, lineHeight: 20 },
-  reportActions: { flexDirection: 'row', gap: 12, marginTop: 4 },
+  reportActions: { flexDirection: 'row', gap: 8, marginTop: 4, flexWrap: 'wrap' },
   secondaryButton: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: Colors.background, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, borderWidth: 1, borderColor: Colors.borderLight },
   secondaryButtonText: { fontSize: 13, fontFamily: 'Inter_500Medium', color: Colors.text },
   badge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
