@@ -1,5 +1,5 @@
 import { QueryClientProvider } from "@tanstack/react-query";
-import { Stack, router } from "expo-router";
+import { Stack, router, useSegments } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import React, { useEffect } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
@@ -14,12 +14,15 @@ SplashScreen.preventAutoHideAsync();
 
 function RootLayoutNav() {
   const { currentUser, isLoading } = useApp();
+  const segments = useSegments();
 
   useEffect(() => {
-    if (!isLoading && !currentUser) {
+    if (isLoading) return;
+    const onLoginScreen = segments.length === 0;
+    if (!currentUser && !onLoginScreen) {
       router.replace('/');
     }
-  }, [currentUser, isLoading]);
+  }, [currentUser, isLoading, segments]);
 
   return (
     <>
