@@ -41,7 +41,7 @@ export interface SubmittedReport {
   submittedBy: string;
   submittedAt: string;
   type: 'generate' | 'manual';
-  content: string; // HTML or JSON string
+  content: string;
   notes?: string;
   subject?: string;
   status: 'pending' | 'reviewed';
@@ -127,14 +127,72 @@ interface AppContextValue {
 const AppContext = createContext<AppContextValue | null>(null);
 
 const STORAGE_KEYS = {
-  USERS: '@schindler_users',
-  PROJECTS: '@schindler_projects',
-  CURRENT_PROJECT: '@schindler_current_project',
-  TASK_STATES: '@schindler_task_states',
   CURRENT_USER: '@schindler_current_user',
-  SUBMITTED_REPORTS: '@schindler_submitted_reports',
-  ADMIN_MESSAGES: '@schindler_admin_messages',
+  CURRENT_PROJECT: '@schindler_current_project',
 };
+
+function mapServerProject(p: any): ProjectInfo {
+  return {
+    id: p.id,
+    customer: p.customer || '',
+    projectName: p.projectName || p.project_name || '',
+    location: p.location || '',
+    commissionNumber: p.commissionNumber || p.commission_number || '',
+    escalatorType: p.escalatorType || p.escalator_type || 'Escalator',
+    dateOfCompletion: p.dateOfCompletion || p.date_of_completion || '',
+    createdAt: p.createdAt || p.created_at || '',
+    createdBy: p.createdBy || p.created_by || '',
+    assignedMembers: p.assignedMembers || p.assigned_members || [],
+  };
+}
+
+function mapServerTaskState(t: any): TaskState {
+  return {
+    uid: t.uid || '',
+    projectId: t.projectId || t.project_id || '',
+    status: t.status || 'pending',
+    assignedTo: t.assignedTo || t.assigned_to || '',
+    dueDate: t.dueDate || t.due_date || '',
+    actDuration: t.actDuration || t.act_duration || '',
+    actLabor: t.actLabor || t.act_labor || '',
+    comments: t.comments || '',
+    response: t.response || '',
+    remarks: t.remarks || '',
+    completedBy: t.completedBy || t.completed_by || '',
+    completedAt: t.completedAt || t.completed_at || '',
+    attachments: t.attachments || [],
+    commentHistory: t.commentHistory || t.comment_history || [],
+  };
+}
+
+function mapServerReport(r: any): SubmittedReport {
+  return {
+    id: r.id,
+    projectId: r.projectId || r.project_id || '',
+    submittedBy: r.submittedBy || r.submitted_by || '',
+    submittedAt: r.submittedAt || r.submitted_at || '',
+    type: r.type || 'generate',
+    content: r.content || '',
+    notes: r.notes || '',
+    subject: r.subject || '',
+    status: r.status || 'pending',
+  };
+}
+
+function mapServerMessage(m: any): AdminMessage {
+  return {
+    id: m.id,
+    type: m.type || 'message',
+    projectId: m.projectId || m.project_id || '',
+    projectName: m.projectName || m.project_name || '',
+    senderUsername: m.senderUsername || m.sender_username || '',
+    subject: m.subject || '',
+    body: m.body || '',
+    attachments: m.attachments || [],
+    sentAt: m.sentAt || m.sent_at || '',
+    read: m.read || false,
+  };
+}
 
 export function AppProvider({ children }: { children: ReactNode }) {
   const [currentUser, setCurrentUser] = useState<UserAccount | null>(null);
@@ -153,40 +211,52 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const loadData = async () => {
     try {
-      const [savedUsers, savedProjects, savedCurrentProject, savedTaskStates, savedCurrentUser, savedReports, savedMessages] = await Promise.all([
-        AsyncStorage.getItem(STORAGE_KEYS.USERS),
-        AsyncStorage.getItem(STORAGE_KEYS.PROJECTS),
-        AsyncStorage.getItem(STORAGE_KEYS.CURRENT_PROJECT),
-        AsyncStorage.getItem(STORAGE_KEYS.TASK_STATES),
-        AsyncStorage.getItem(STORAGE_KEYS.CURRENT_USER),
-        AsyncStorage.getItem(STORAGE_KEYS.SUBMITTED_REPORTS),
-        AsyncStorage.getItem(STORAGE_KEYS.ADMIN_MESSAGES),
-      ]);
+      const savedCurrentUser = await AsyncStorage.getItem(STORAGE_KEYS.CURRENT_USER);
+      const savedCurrentProject = await AsyncStorage.getItem(STORAGE_KEYS.CURRENT_PROJECT);
 
-      if (savedUsers) setUsers(JSON.parse(savedUsers));
-      else await AsyncStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(DEFAULT_USERS));
-
-      if (savedProjects) setProjects(JSON.parse(savedProjects));
-      if (savedCurrentProject) setCurrentProject(JSON.parse(savedCurrentProject));
-      if (savedTaskStates) setTaskStates(JSON.parse(savedTaskStates));
       if (savedCurrentUser) setCurrentUser(JSON.parse(savedCurrentUser));
-      if (savedReports) setSubmittedReports(JSON.parse(savedReports));
-      if (savedMessages) setAdminMessages(JSON.parse(savedMessages));
+      if (savedCurrentProject) setCurrentProject(JSON.parse(savedCurrentProject));
 
       try {
-        const res = await fetch(`${API_BASE}/api/users`);
-        if (res.ok) {
-          const serverUsers = await res.json();
+        const [usersRes, projectsRes, taskStatesRes, reportsRes, messagesRes] = await Promise.all([
+          fetch(`${API_BASE}/api/users`),
+          fetch(`${API_BASE}/api/projects`),
+          fetch(`${API_BASE}/api/task-states`),
+          fetch(`${API_BASE}/api/reports`),
+          fetch(`${API_BASE}/api/messages`),
+        ]);
+
+        if (usersRes.ok) {
+          const serverUsers = await usersRes.json();
           const mapped: UserAccount[] = serverUsers.map((u: any) => ({
             username: u.username,
             password: '',
             role: u.role as 'admin' | 'member',
           }));
           setUsers(mapped);
-          await AsyncStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(mapped));
+        }
+
+        if (projectsRes.ok) {
+          const serverProjects = await projectsRes.json();
+          setProjects(serverProjects.map(mapServerProject));
+        }
+
+        if (taskStatesRes.ok) {
+          const serverStates = await taskStatesRes.json();
+          setTaskStates(serverStates.map(mapServerTaskState));
+        }
+
+        if (reportsRes.ok) {
+          const serverReports = await reportsRes.json();
+          setSubmittedReports(serverReports.map(mapServerReport));
+        }
+
+        if (messagesRes.ok) {
+          const serverMessages = await messagesRes.json();
+          setAdminMessages(serverMessages.map(mapServerMessage));
         }
       } catch (e) {
-        console.log('Could not fetch users from server on load, using local cache');
+        console.log('Could not fetch from server on load, using defaults');
       }
     } catch (e) {
       console.error('Failed to load data:', e);
@@ -194,14 +264,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setIsLoading(false);
     }
   };
-
-  const saveTaskStates = useCallback(async (states: TaskState[]) => {
-    await AsyncStorage.setItem(STORAGE_KEYS.TASK_STATES, JSON.stringify(states));
-  }, []);
-
-  const saveProjects = useCallback(async (projs: ProjectInfo[]) => {
-    await AsyncStorage.setItem(STORAGE_KEYS.PROJECTS, JSON.stringify(projs));
-  }, []);
 
   const refreshUsers = useCallback(async () => {
     try {
@@ -214,10 +276,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
           role: u.role as 'admin' | 'member',
         }));
         setUsers(mapped);
-        await AsyncStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(mapped));
       }
     } catch (e) {
-      console.log('Could not fetch users from server, using local cache');
+      console.log('Could not fetch users from server');
     }
   }, []);
 
@@ -238,6 +299,35 @@ export function AppProvider({ children }: { children: ReactNode }) {
         };
         setCurrentUser(user);
         await AsyncStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(user));
+
+        try {
+          const [projectsRes, taskStatesRes, reportsRes, messagesRes] = await Promise.all([
+            fetch(`${API_BASE}/api/projects?username=${encodeURIComponent(data.username)}&role=${encodeURIComponent(data.role)}`),
+            fetch(`${API_BASE}/api/task-states`),
+            fetch(`${API_BASE}/api/reports`),
+            fetch(`${API_BASE}/api/messages`),
+          ]);
+
+          if (projectsRes.ok) {
+            const serverProjects = await projectsRes.json();
+            setProjects(serverProjects.map(mapServerProject));
+          }
+          if (taskStatesRes.ok) {
+            const serverStates = await taskStatesRes.json();
+            setTaskStates(serverStates.map(mapServerTaskState));
+          }
+          if (reportsRes.ok) {
+            const serverReports = await reportsRes.json();
+            setSubmittedReports(serverReports.map(mapServerReport));
+          }
+          if (messagesRes.ok) {
+            const serverMessages = await messagesRes.json();
+            setAdminMessages(serverMessages.map(mapServerMessage));
+          }
+        } catch (e) {
+          console.log('Could not refresh data after login');
+        }
+
         return true;
       }
       return false;
@@ -255,52 +345,92 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const logout = useCallback(() => {
     setCurrentUser(null);
+    setCurrentProject(null);
     AsyncStorage.removeItem(STORAGE_KEYS.CURRENT_USER);
+    AsyncStorage.removeItem(STORAGE_KEYS.CURRENT_PROJECT);
   }, []);
 
-  const createProject = useCallback((project: Omit<ProjectInfo, 'id' | 'createdAt' | 'createdBy'>) => {
-    const id = Date.now().toString() + Math.random().toString(36).substr(2, 9);
-    const newProject: ProjectInfo = {
-      ...project,
-      id,
+  const createProject = useCallback(async (project: Omit<ProjectInfo, 'id' | 'createdAt' | 'createdBy'>) => {
+    const projectData = {
+      customer: project.customer,
+      projectName: project.projectName,
+      location: project.location,
+      commissionNumber: project.commissionNumber,
+      escalatorType: project.escalatorType || 'Escalator',
+      dateOfCompletion: project.dateOfCompletion || '',
       createdAt: new Date().toISOString(),
       createdBy: currentUser?.username || '',
+      assignedMembers: project.assignedMembers || [],
     };
-    const updated = [...projects, newProject];
-    setProjects(updated);
-    setCurrentProject(newProject);
-    saveProjects(updated);
-    AsyncStorage.setItem(STORAGE_KEYS.CURRENT_PROJECT, JSON.stringify(newProject));
 
-    const newTaskStates: TaskState[] = ALL_TASKS.map(t => ({
-      uid: t.uid,
-      projectId: id,
-      status: 'pending' as const,
-      assignedTo: '',
-      dueDate: '',
-      actDuration: '',
-      actLabor: '',
-      comments: t.defaultComments || '',
-      response: '' as ResponseValue,
-      remarks: '',
-      completedBy: '',
-      completedAt: '',
-    }));
-    const allStates = [...taskStates, ...newTaskStates];
-    setTaskStates(allStates);
-    saveTaskStates(allStates);
-  }, [projects, taskStates, currentUser, saveProjects, saveTaskStates]);
+    try {
+      const res = await fetch(`${API_BASE}/api/projects`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(projectData),
+      });
 
-  const updateProject = useCallback((id: string, updates: Partial<Omit<ProjectInfo, 'id' | 'createdAt' | 'createdBy'>>) => {
-    const updatedProjects = projects.map(p => p.id === id ? { ...p, ...updates } : p);
-    setProjects(updatedProjects);
-    saveProjects(updatedProjects);
+      if (res.ok) {
+        const created = await res.json();
+        const newProject = mapServerProject(created);
+        setProjects(prev => [...prev, newProject]);
+        setCurrentProject(newProject);
+        AsyncStorage.setItem(STORAGE_KEYS.CURRENT_PROJECT, JSON.stringify(newProject));
+
+        const newTaskStates = ALL_TASKS.map(t => ({
+          uid: t.uid,
+          projectId: newProject.id,
+          status: 'pending',
+          assignedTo: '',
+          dueDate: '',
+          actDuration: '',
+          actLabor: '',
+          comments: t.defaultComments || '',
+          response: '',
+          remarks: '',
+          completedBy: '',
+          completedAt: '',
+          attachments: [],
+          commentHistory: [],
+        }));
+
+        try {
+          const tasksRes = await fetch(`${API_BASE}/api/task-states/bulk`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ states: newTaskStates }),
+          });
+          if (tasksRes.ok) {
+            const createdStates = await tasksRes.json();
+            setTaskStates(prev => [...prev, ...createdStates.map(mapServerTaskState)]);
+          }
+        } catch (e) {
+          console.log('Failed to create task states on server');
+        }
+      }
+    } catch (e) {
+      console.error('Failed to create project:', e);
+    }
+  }, [currentUser]);
+
+  const updateProject = useCallback(async (id: string, updates: Partial<Omit<ProjectInfo, 'id' | 'createdAt' | 'createdBy'>>) => {
+    setProjects(prev => prev.map(p => p.id === id ? { ...p, ...updates } : p));
     if (currentProject?.id === id) {
       const updatedCurrent = { ...currentProject, ...updates };
       setCurrentProject(updatedCurrent);
       AsyncStorage.setItem(STORAGE_KEYS.CURRENT_PROJECT, JSON.stringify(updatedCurrent));
     }
-  }, [projects, currentProject, saveProjects]);
+
+    try {
+      await fetch(`${API_BASE}/api/projects/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates),
+      });
+    } catch (e) {
+      console.log('Failed to update project on server');
+    }
+  }, [currentProject]);
 
   const selectProject = useCallback((id: string) => {
     const project = projects.find(p => p.id === id);
@@ -310,42 +440,64 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }, [projects]);
 
-  const deleteProject = useCallback((id: string) => {
-    const updatedProjects = projects.filter(p => p.id !== id);
-    const updatedTasks = taskStates.filter(t => t.projectId !== id);
-    const updatedReports = submittedReports.filter(r => r.projectId !== id);
-    setProjects(updatedProjects);
-    setTaskStates(updatedTasks);
-    setSubmittedReports(updatedReports);
-    saveProjects(updatedProjects);
-    saveTaskStates(updatedTasks);
-    AsyncStorage.setItem(STORAGE_KEYS.SUBMITTED_REPORTS, JSON.stringify(updatedReports));
+  const deleteProject = useCallback(async (id: string) => {
+    setProjects(prev => prev.filter(p => p.id !== id));
+    setTaskStates(prev => prev.filter(t => t.projectId !== id));
+    setSubmittedReports(prev => prev.filter(r => r.projectId !== id));
+
     if (currentProject?.id === id) {
       setCurrentProject(null);
       AsyncStorage.removeItem(STORAGE_KEYS.CURRENT_PROJECT);
     }
-  }, [projects, taskStates, submittedReports, currentProject, saveProjects, saveTaskStates]);
 
-  const submitReport = useCallback((report: Omit<SubmittedReport, 'id' | 'submittedAt' | 'status'>) => {
-    const newReport: SubmittedReport = {
+    try {
+      await fetch(`${API_BASE}/api/projects/${id}`, { method: 'DELETE' });
+    } catch (e) {
+      console.log('Failed to delete project on server');
+    }
+  }, [currentProject]);
+
+  const submitReport = useCallback(async (report: Omit<SubmittedReport, 'id' | 'submittedAt' | 'status'>) => {
+    const reportData = {
       ...report,
-      id: Date.now().toString(),
       submittedAt: new Date().toISOString(),
       status: 'pending',
     };
-    setSubmittedReports(prev => {
-      const updated = [...prev, newReport];
-      AsyncStorage.setItem(STORAGE_KEYS.SUBMITTED_REPORTS, JSON.stringify(updated));
-      return updated;
-    });
+
+    try {
+      const res = await fetch(`${API_BASE}/api/reports`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(reportData),
+      });
+
+      if (res.ok) {
+        const created = await res.json();
+        setSubmittedReports(prev => [...prev, mapServerReport(created)]);
+      }
+    } catch (e) {
+      const fallback: SubmittedReport = {
+        ...report,
+        id: Date.now().toString(),
+        submittedAt: new Date().toISOString(),
+        status: 'pending',
+      };
+      setSubmittedReports(prev => [...prev, fallback]);
+    }
   }, []);
 
-  const updateReport = useCallback((id: string, updates: Partial<SubmittedReport>) => {
-    setSubmittedReports(prev => {
-      const updated = prev.map(r => r.id === id ? { ...r, ...updates } : r);
-      AsyncStorage.setItem(STORAGE_KEYS.SUBMITTED_REPORTS, JSON.stringify(updated));
-      return updated;
-    });
+  const updateReport = useCallback(async (id: string, updates: Partial<SubmittedReport>) => {
+    setSubmittedReports(prev => prev.map(r => r.id === id ? { ...r, ...updates } : r));
+
+    try {
+      await fetch(`${API_BASE}/api/reports/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates),
+      });
+    } catch (e) {
+      console.log('Failed to update report on server');
+    }
   }, []);
 
   const addUser = useCallback(async (username: string, role: 'admin' | 'member'): Promise<boolean> => {
@@ -363,23 +515,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
           password: 'password123',
           role: data.role as 'admin' | 'member',
         };
-        setUsers(prev => {
-          const updated = [...prev, newUser];
-          AsyncStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(updated));
-          return updated;
-        });
+        setUsers(prev => [...prev, newUser]);
         return true;
       }
       return false;
     } catch (e) {
-      console.log('Server addUser failed, adding locally');
-      const newUser: UserAccount = { username, password: 'password123', role };
-      setUsers(prev => {
-        const updated = [...prev, newUser];
-        AsyncStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(updated));
-        return updated;
-      });
-      return true;
+      console.log('Server addUser failed');
+      return false;
     }
   }, []);
 
@@ -389,60 +531,92 @@ export function AppProvider({ children }: { children: ReactNode }) {
         method: 'DELETE',
       });
     } catch (e) {
-      console.log('Server deleteUser failed, deleting locally');
+      console.log('Server deleteUser failed');
     }
-    setUsers(prev => {
-      const updated = prev.filter(u => u.username !== username);
-      AsyncStorage.setItem(STORAGE_KEYS.USERS, JSON.stringify(updated));
-      return updated;
-    });
+    setUsers(prev => prev.filter(u => u.username !== username));
   }, []);
 
-  const sendAdminMessage = useCallback((message: Omit<AdminMessage, 'id' | 'sentAt' | 'read'>) => {
-    const newMessage: AdminMessage = {
+  const sendAdminMessage = useCallback(async (message: Omit<AdminMessage, 'id' | 'sentAt' | 'read'>) => {
+    const messageData = {
       ...message,
-      id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
       sentAt: new Date().toISOString(),
       read: false,
     };
-    setAdminMessages(prev => {
-      const updated = [...prev, newMessage];
-      AsyncStorage.setItem(STORAGE_KEYS.ADMIN_MESSAGES, JSON.stringify(updated));
-      return updated;
-    });
+
+    try {
+      const res = await fetch(`${API_BASE}/api/messages`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(messageData),
+      });
+
+      if (res.ok) {
+        const created = await res.json();
+        setAdminMessages(prev => [...prev, mapServerMessage(created)]);
+      }
+    } catch (e) {
+      const fallback: AdminMessage = {
+        ...message,
+        id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+        sentAt: new Date().toISOString(),
+        read: false,
+      };
+      setAdminMessages(prev => [...prev, fallback]);
+    }
   }, []);
 
-  const markMessageRead = useCallback((id: string) => {
-    setAdminMessages(prev => {
-      const updated = prev.map(m => m.id === id ? { ...m, read: true } : m);
-      AsyncStorage.setItem(STORAGE_KEYS.ADMIN_MESSAGES, JSON.stringify(updated));
-      return updated;
-    });
+  const markMessageRead = useCallback(async (id: string) => {
+    setAdminMessages(prev => prev.map(m => m.id === id ? { ...m, read: true } : m));
+
+    try {
+      await fetch(`${API_BASE}/api/messages/${id}/read`, { method: 'PUT' });
+    } catch (e) {
+      console.log('Failed to mark message read on server');
+    }
   }, []);
 
-  const updateTask = useCallback((uid: string, updates: Partial<TaskState>) => {
+  const updateTask = useCallback(async (uid: string, updates: Partial<TaskState>) => {
     if (!currentProject) return;
-    setTaskStates(prev => {
-      const updated = prev.map(t =>
-        t.uid === uid && t.projectId === currentProject.id ? { ...t, ...updates } : t
-      );
-      saveTaskStates(updated);
-      return updated;
-    });
-  }, [currentProject, saveTaskStates]);
+    const projectId = currentProject.id;
 
-  const completeTask = useCallback((uid: string) => {
+    setTaskStates(prev => prev.map(t =>
+      t.uid === uid && t.projectId === projectId ? { ...t, ...updates } : t
+    ));
+
+    try {
+      await fetch(`${API_BASE}/api/task-states/${projectId}/${uid}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates),
+      });
+    } catch (e) {
+      console.log('Failed to update task on server');
+    }
+  }, [currentProject]);
+
+  const completeTask = useCallback(async (uid: string) => {
     if (!currentProject || !currentUser) return;
-    setTaskStates(prev => {
-      const updated = prev.map(t =>
-        t.uid === uid && t.projectId === currentProject.id
-          ? { ...t, status: 'completed' as const, completedBy: currentUser.username, completedAt: new Date().toISOString() }
-          : t
-      );
-      saveTaskStates(updated);
-      return updated;
-    });
-  }, [currentProject, currentUser, saveTaskStates]);
+    const projectId = currentProject.id;
+    const completionUpdates = {
+      status: 'completed' as const,
+      completedBy: currentUser.username,
+      completedAt: new Date().toISOString(),
+    };
+
+    setTaskStates(prev => prev.map(t =>
+      t.uid === uid && t.projectId === projectId ? { ...t, ...completionUpdates } : t
+    ));
+
+    try {
+      await fetch(`${API_BASE}/api/task-states/${projectId}/${uid}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(completionUpdates),
+      });
+    } catch (e) {
+      console.log('Failed to complete task on server');
+    }
+  }, [currentProject, currentUser]);
 
   const getTaskState = useCallback((uid: string): TaskState | undefined => {
     if (!currentProject) return undefined;
@@ -458,8 +632,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     users,
     login,
     logout,
-    projects: currentUser?.role === 'admin' 
-      ? projects 
+    projects: currentUser?.role === 'admin'
+      ? projects
       : projects.filter(p => p.assignedMembers?.includes(currentUser?.username || '')),
     currentProject,
     createProject,
