@@ -102,6 +102,7 @@ interface AppContextValue {
   projects: ProjectInfo[];
   currentProject: ProjectInfo | null;
   createProject: (project: Omit<ProjectInfo, 'id' | 'createdAt' | 'createdBy'>) => void;
+  updateProject: (id: string, updates: Partial<Omit<ProjectInfo, 'id' | 'createdAt' | 'createdBy'>>) => void;
   selectProject: (id: string) => void;
   deleteProject: (id: string) => void;
   taskStates: TaskState[];
@@ -290,6 +291,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
     saveTaskStates(allStates);
   }, [projects, taskStates, currentUser, saveProjects, saveTaskStates]);
 
+  const updateProject = useCallback((id: string, updates: Partial<Omit<ProjectInfo, 'id' | 'createdAt' | 'createdBy'>>) => {
+    const updatedProjects = projects.map(p => p.id === id ? { ...p, ...updates } : p);
+    setProjects(updatedProjects);
+    saveProjects(updatedProjects);
+    if (currentProject?.id === id) {
+      const updatedCurrent = { ...currentProject, ...updates };
+      setCurrentProject(updatedCurrent);
+      AsyncStorage.setItem(STORAGE_KEYS.CURRENT_PROJECT, JSON.stringify(updatedCurrent));
+    }
+  }, [projects, currentProject, saveProjects]);
+
   const selectProject = useCallback((id: string) => {
     const project = projects.find(p => p.id === id);
     if (project) {
@@ -451,6 +463,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       : projects.filter(p => p.assignedMembers?.includes(currentUser?.username || '')),
     currentProject,
     createProject,
+    updateProject,
     selectProject,
     deleteProject,
     taskStates,
@@ -470,7 +483,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     adminMessages,
     sendAdminMessage,
     markMessageRead,
-  }), [currentUser, users, login, logout, projects, currentProject, createProject, selectProject, deleteProject, taskStates, updateTask, completeTask, getTaskState, getTaskDef, isLoading, focusSection, submittedReports, submitReport, updateReport, addUser, deleteUser, refreshUsers, adminMessages, sendAdminMessage, markMessageRead]);
+  }), [currentUser, users, login, logout, projects, currentProject, createProject, updateProject, selectProject, deleteProject, taskStates, updateTask, completeTask, getTaskState, getTaskDef, isLoading, focusSection, submittedReports, submitReport, updateReport, addUser, deleteUser, refreshUsers, adminMessages, sendAdminMessage, markMessageRead]);
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
 }

@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { View, Text, TextInput, ScrollView, Pressable, StyleSheet, Platform, KeyboardAvoidingView } from 'react-native';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
@@ -9,13 +9,22 @@ import { useApp } from '@/contexts/AppContext';
 
 export default function ProjectSetupScreen() {
   const insets = useSafeAreaInsets();
-  const { createProject, users } = useApp();
-  const [customer, setCustomer] = useState('');
-  const [projectName, setProjectName] = useState('');
-  const [location, setLocation] = useState('');
-  const [commissionNumber, setCommissionNumber] = useState('');
-  const [escalatorType, setEscalatorType] = useState('');
-  const [assignedMembers, setAssignedMembers] = useState<string[]>([]);
+  const { createProject, updateProject, users, projects } = useApp();
+  const { projectId } = useLocalSearchParams<{ projectId?: string }>();
+
+  const editingProject = useMemo(() => {
+    if (!projectId) return null;
+    return projects.find(p => p.id === projectId) || null;
+  }, [projectId, projects]);
+
+  const isEditing = !!editingProject;
+
+  const [customer, setCustomer] = useState(editingProject?.customer || '');
+  const [projectName, setProjectName] = useState(editingProject?.projectName || '');
+  const [location, setLocation] = useState(editingProject?.location || '');
+  const [commissionNumber, setCommissionNumber] = useState(editingProject?.commissionNumber || '');
+  const [escalatorType, setEscalatorType] = useState(editingProject?.escalatorType || '');
+  const [assignedMembers, setAssignedMembers] = useState<string[]>(editingProject?.assignedMembers || []);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const members = useMemo(() => users.filter(u => u.role === 'member'), [users]);
@@ -37,13 +46,13 @@ export default function ProjectSetupScreen() {
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleCreate = () => {
+  const handleSubmit = () => {
     if (!validate()) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       return;
     }
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    createProject({
+    const projectData = {
       customer: customer.trim(),
       projectName: projectName.trim(),
       location: location.trim(),
@@ -51,7 +60,12 @@ export default function ProjectSetupScreen() {
       escalatorType: escalatorType.trim() || 'Escalator',
       dateOfCompletion: '',
       assignedMembers: assignedMembers,
-    });
+    };
+    if (isEditing && editingProject) {
+      updateProject(editingProject.id, projectData);
+    } else {
+      createProject(projectData);
+    }
     router.back();
   };
 
@@ -77,7 +91,7 @@ export default function ProjectSetupScreen() {
           <Pressable onPress={() => router.back()} hitSlop={12}>
             <Ionicons name="close" size={28} color={Colors.text} />
           </Pressable>
-          <Text style={styles.navTitle}>New Project</Text>
+          <Text style={styles.navTitle}>{isEditing ? 'Edit Project' : 'New Project'}</Text>
           <View style={{ width: 28 }} />
         </View>
 
@@ -122,11 +136,11 @@ export default function ProjectSetupScreen() {
           )}
 
           <Pressable
-            onPress={handleCreate}
+            onPress={handleSubmit}
             style={({ pressed }) => [styles.createButton, pressed && { opacity: 0.85, transform: [{ scale: 0.98 }] }]}
           >
             <Ionicons name="checkmark" size={22} color="#FFF" />
-            <Text style={styles.createButtonText}>Create Project</Text>
+            <Text style={styles.createButtonText}>{isEditing ? 'Save Changes' : 'Create Project'}</Text>
           </Pressable>
         </ScrollView>
       </KeyboardAvoidingView>

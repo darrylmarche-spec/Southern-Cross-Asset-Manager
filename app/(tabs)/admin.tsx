@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, Alert, Platform, Share } from 'react-native';
+import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons, Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
@@ -109,7 +110,7 @@ export default function AdminScreen() {
             </View>
           </View>
           <View style={styles.row}>
-            <Pressable style={styles.iconButton} onPress={() => Alert.alert('Edit', 'Coming soon')}>
+            <Pressable style={styles.iconButton} onPress={() => router.push({ pathname: '/project-setup', params: { projectId: project.id } })}>
               <Ionicons name="create-outline" size={20} color={Colors.textSecondary} />
             </Pressable>
             <Pressable style={styles.iconButton} onPress={() => deleteProject(project.id)}>
