@@ -1,5 +1,5 @@
 import { QueryClientProvider } from "@tanstack/react-query";
-import { Stack, router, useSegments } from "expo-router";
+import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import React, { useEffect } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
@@ -7,23 +7,12 @@ import { KeyboardProvider } from "react-native-keyboard-controller";
 import { StatusBar } from "expo-status-bar";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { queryClient } from "@/lib/query-client";
-import { AppProvider, useApp } from "@/contexts/AppContext";
+import { AppProvider } from "@/contexts/AppContext";
 import { useFonts, Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold } from "@expo-google-fonts/inter";
 
 SplashScreen.preventAutoHideAsync();
 
 function RootLayoutNav() {
-  const { currentUser, isLoading } = useApp();
-  const segments = useSegments();
-
-  useEffect(() => {
-    if (isLoading) return;
-    const onLoginScreen = segments.length === 0;
-    if (!currentUser && !onLoginScreen) {
-      router.replace('/');
-    }
-  }, [currentUser, isLoading, segments]);
-
   return (
     <>
       <StatusBar style="dark" />
