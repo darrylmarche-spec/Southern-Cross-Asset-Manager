@@ -144,16 +144,23 @@ export default function CompletedScreen() {
           <Text style={styles.headerTitle}>Completed</Text>
           <Text style={styles.headerCount}>{completedTasks.length} tasks</Text>
         </View>
-        <View style={styles.headerButtons}>
-          <Pressable onPress={() => router.push('/manual-report')} style={({ pressed }) => [styles.reportButton, pressed && { opacity: 0.7 }]}>
-            <Ionicons name="create-outline" size={18} color={Colors.primary} />
-            <Text style={styles.reportButtonText}>Manual Report</Text>
-          </Pressable>
-          <Pressable onPress={generatePdf} style={({ pressed }) => [styles.reportButton, pressed && { opacity: 0.7 }]}>
-            <Ionicons name="document-text-outline" size={18} color={Colors.primary} />
-            <Text style={styles.reportButtonText}>Generate Report</Text>
-          </Pressable>
-        </View>
+      </View>
+
+      <View style={styles.centralButtons}>
+        <Pressable 
+          onPress={() => router.push('/manual-report')} 
+          style={({ pressed }) => [styles.largeReportButton, pressed && { opacity: 0.8, transform: [{ scale: 0.98 }] }]}
+        >
+          <Ionicons name="create" size={24} color="#FFF" />
+          <Text style={styles.largeReportButtonText}>Manual Report</Text>
+        </Pressable>
+        <Pressable 
+          onPress={generatePdf} 
+          style={({ pressed }) => [styles.largeReportButton, styles.secondaryLargeButton, pressed && { opacity: 0.8, transform: [{ scale: 0.98 }] }]}
+        >
+          <Ionicons name="document-text" size={24} color={Colors.primary} />
+          <Text style={[styles.largeReportButtonText, { color: Colors.primary }]}>Generate Report</Text>
+        </Pressable>
       </View>
 
       <View style={styles.filterRow}>
@@ -221,9 +228,33 @@ const styles = StyleSheet.create({
   headerLeft: {},
   headerTitle: { fontSize: 28, fontFamily: 'Inter_700Bold', color: Colors.text },
   headerCount: { fontSize: 14, fontFamily: 'Inter_400Regular', color: Colors.textSecondary },
-  headerButtons: { flexDirection: 'row', gap: 8 },
-  reportButton: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: Colors.primaryLight, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8 },
-  reportButtonText: { fontSize: 12, fontFamily: 'Inter_600SemiBold', color: Colors.primary },
+  centralButtons: { paddingHorizontal: 20, paddingVertical: 16, gap: 12, alignItems: 'center' },
+  largeReportButton: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    justifyContent: 'center',
+    gap: 12, 
+    backgroundColor: Colors.primary, 
+    borderRadius: 16, 
+    width: '100%',
+    height: 56,
+    shadowColor: Colors.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 4
+  },
+  secondaryLargeButton: {
+    backgroundColor: Colors.primaryLight,
+    borderWidth: 1.5,
+    borderColor: Colors.primary,
+    shadowColor: 'transparent',
+  },
+  largeReportButtonText: { 
+    fontSize: 17, 
+    fontFamily: 'Inter_700Bold', 
+    color: '#FFF' 
+  },
   filterRow: { flexDirection: 'row', paddingHorizontal: 16, paddingVertical: 8, gap: 6, flexWrap: 'wrap' as const },
   filterChip: { backgroundColor: Colors.surface, borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6, borderWidth: 1, borderColor: Colors.borderLight },
   filterChipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
