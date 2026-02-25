@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons, Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import * as Print from 'expo-print';
+import * as Sharing from 'expo-sharing';
 import Colors from '@/constants/colors';
 import { useApp, UserAccount, SubmittedReport } from '@/contexts/AppContext';
 
@@ -132,7 +133,8 @@ export default function AdminScreen() {
       }
     } else {
       try {
-        await Print.printAsync({ html: report.content });
+        const { uri } = await Print.printToFileAsync({ html: report.content });
+        await Sharing.shareAsync(uri, { mimeType: 'application/pdf', dialogTitle: 'View Report' });
       } catch (error) {
         console.error(error);
       }
