@@ -45,7 +45,7 @@ Preferred communication style: Simple, everyday language.
   - `GET/POST/PUT /api/reports` — Report management
   - `GET/POST/PUT /api/messages` — Admin messaging
 - **Storage**: `server/storage.ts` defines an `IStorage` interface with a `DatabaseStorage` implementation backed by PostgreSQL via Drizzle ORM
-- **Access Control**: Admin accounts (Admin, Darryl) see all projects and historical data. Team members only see projects they are currently assigned to
+- **Access Control**: Admin accounts (Davor, Darryl) see all projects and historical data. Team members only see projects they are currently assigned to
 - **CORS**: Configured to allow Replit domains and localhost origins for development
 - **Static serving**: In production, serves a built static web version of the Expo app; in development, proxies to the Expo Metro bundler
 - **Build process**: `scripts/build.js` handles static export for production deployment
@@ -64,7 +64,7 @@ Preferred communication style: Simple, everyday language.
 
 ### Data Model
 
-- **Users**: Default admin accounts (Admin/adminpassword, Darryl/schindler1) seeded on server start. New team members created with default password "password123"
+- **Users**: Default admin accounts (Davor/adminpassword, Darryl/schindler1) seeded on server start. New team members created with default password "password123"
 - **Projects**: Created by admins with team member assignments. Admins see all projects; members see only assigned projects
 - **Task Definitions**: Static list of ~40+ tasks across 11 sections (Overhaul Workflow + 10 Commissioning sections) defined in `data/checklist-data.ts`
 - **Task States**: Per-project task tracking stored in PostgreSQL: status, assigned user, actual duration/labor, response values, remarks, completion timestamps, attachments, comment history
