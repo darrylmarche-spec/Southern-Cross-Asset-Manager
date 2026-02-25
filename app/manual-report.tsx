@@ -19,7 +19,7 @@ export interface Attachment {
 
 export default function ManualReportScreen() {
   const insets = useSafeAreaInsets();
-  const { currentProject, currentUser } = useApp();
+  const { currentProject, currentUser, submitReport } = useApp();
 
   const today = new Date().toLocaleDateString('en-AU', { day: '2-digit', month: '2-digit', year: 'numeric' });
 
@@ -68,6 +68,8 @@ export default function ManualReportScreen() {
       }
       return;
     }
+
+    if (!currentProject || !currentUser) return;
 
     const attachmentsHtml = attachments.length > 0 
       ? `
@@ -130,14 +132,19 @@ export default function ManualReportScreen() {
     </body></html>`;
 
     try {
-      const { uri } = await Print.printToFileAsync({ html });
-      if (Platform.OS === 'web') {
-        await Print.printAsync({ html });
-      } else {
-        await Sharing.shareAsync(uri, { mimeType: 'application/pdf', dialogTitle: 'Share Manual Report' });
-      }
+      submitReport({
+        projectId: currentProject.id,
+        submittedBy: currentUser.username,
+        type: 'manual',
+        content: html,
+        subject,
+        notes,
+      });
+      
+      Alert.alert('Report Submitted', 'The report has been saved to the admin reports section.');
+      router.back();
     } catch (e) {
-      console.error('Manual report PDF error:', e);
+      console.error('Manual report submission error:', e);
     }
   };
 
@@ -224,8 +231,8 @@ export default function ManualReportScreen() {
           onPress={generateAndShare}
           style={({ pressed }) => [styles.generateButton, pressed && { opacity: 0.85, transform: [{ scale: 0.98 }] }]}
         >
-          <Ionicons name="share-outline" size={20} color="#FFF" />
-          <Text style={styles.generateButtonText}>Generate & Share Report</Text>
+          <Ionicons name="cloud-upload-outline" size={20} color="#FFF" />
+          <Text style={styles.generateButtonText}>Submit Report</Text>
         </Pressable>
 
         <View style={{ height: insets.bottom + 40 }} />

@@ -104,25 +104,15 @@ export default function CompletedScreen() {
     </body></html>`;
 
     try {
-      const { uri } = await Print.printToFileAsync({ html });
-      
-      if (currentUser?.role === 'member') {
-        // Automatically "send" to admin by storing it
-        submitReport({
-          projectId: currentProject.id,
-          submittedBy: currentUser.username,
-          type: 'generate',
-          content: html,
-          subject: `${currentProject.projectName} - Commissioning Report`,
-        });
-        Alert.alert('Report Sent', 'Your report has been sent to the administrator for review.');
-      }
-
-      if (Platform.OS === 'web') {
-        await Print.printAsync({ html });
-      } else {
-        await Sharing.shareAsync(uri, { mimeType: 'application/pdf', dialogTitle: 'Share Report' });
-      }
+      // Automatically "send" to admin by storing it
+      submitReport({
+        projectId: currentProject.id,
+        submittedBy: currentUser?.username || 'Unknown',
+        type: 'generate',
+        content: html,
+        subject: `${currentProject.projectName} - Commissioning Report`,
+      });
+      Alert.alert('Report Submitted', 'The report has been saved to the admin reports section.');
     } catch (e) {
       console.error('PDF error:', e);
     }
