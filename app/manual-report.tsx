@@ -1,13 +1,21 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, ScrollView, Pressable, StyleSheet, Platform, Alert } from 'react-native';
+import { View, Text, TextInput, ScrollView, Pressable, StyleSheet, Platform, Alert, Image } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
+import * as DocumentPicker from 'expo-document-picker';
 import Colors from '@/constants/colors';
 import { useApp } from '@/contexts/AppContext';
+
+export interface Attachment {
+  uri: string;
+  name: string;
+  type: string;
+  size?: number;
+}
 
 export default function ManualReportScreen() {
   const insets = useSafeAreaInsets();
@@ -20,6 +28,34 @@ export default function ManualReportScreen() {
   const [preparedBy] = useState(currentUser?.username || '');
   const [subject, setSubject] = useState('');
   const [notes, setNotes] = useState('');
+  const [attachments, setAttachments] = useState<Attachment[]>([]);
+
+  const pickDocument = async () => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: '*/*',
+        copyToCacheDirectory: true,
+      });
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        const asset = result.assets[0];
+        setAttachments(prev => [...prev, {
+          uri: asset.uri,
+          name: asset.name,
+          type: asset.mimeType || 'application/octet-stream',
+          size: asset.size
+        }]);
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      }
+    } catch (err) {
+      console.error('Error picking document:', err);
+    }
+  };
+
+  const removeAttachment = (index: number) => {
+    setAttachments(prev => prev.filter((_, i) => i !== index));
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  };
 
   const generateAndShare = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -32,6 +68,20 @@ export default function ManualReportScreen() {
       }
       return;
     }
+
+    const attachmentsHtml = attachments.length > 0 
+      ? `
+        <div class="section-title">Attachments (${attachments.length})</div>
+        <div class="attachments-grid">
+          ${attachments.map(a => `
+            <div class="attachment-item">
+              <span class="attachment-icon">📎</span>
+              <span class="attachment-name">${a.name}</span>
+            </div>
+          `).join('')}
+        </div>
+      `
+      : '';
 
     const html = `<!DOCTYPE html><html><head><style>
       @page { margin: 30px; }
@@ -46,6 +96,10 @@ export default function ManualReportScreen() {
       .section-title { font-size: 14px; font-weight: bold; color: #CC0000; margin-top: 24px; margin-bottom: 8px; padding-bottom: 4px; border-bottom: 1px solid #ddd; }
       .section-content { min-height: 80px; padding: 10px; background: #fafafa; border: 1px solid #eee; border-radius: 4px; white-space: pre-wrap; margin-bottom: 4px; }
       .empty-content { min-height: 80px; padding: 10px; border: 1px solid #ccc; border-radius: 4px; }
+      .attachments-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
+      .attachment-item { display: flex; align-items: center; gap: 8px; padding: 8px; background: #f5f5f5; border-radius: 4px; border: 1px solid #eee; }
+      .attachment-icon { font-size: 16px; }
+      .attachment-name { color: #444; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
       .sig-section { margin-top: 50px; display: flex; gap: 60px; }
       .sig-block { flex: 1; }
       .sig-line { border-top: 1px solid #000; margin-top: 40px; padding-top: 6px; font-size: 11px; color: #555; }
@@ -69,6 +123,8 @@ export default function ManualReportScreen() {
 
       <div class="section-title">Notes</div>
       <div class="${notes ? 'section-content' : 'empty-content'}">${notes || ''}</div>
+
+      ${attachmentsHtml}
 
       <div class="footer">Schindler Southern Cross Crew - Confidential Report - ${reportDate}</div>
     </body></html>`;
@@ -138,6 +194,32 @@ export default function ManualReportScreen() {
           />
         </View>
 
+        <View style={styles.fieldCard}>
+          <View style={styles.attachmentsHeader}>
+            <Text style={styles.fieldLabel}>Attachments</Text>
+            <Pressable onPress={pickDocument} style={styles.addAttachmentButton}>
+              <Ionicons name="attach" size={20} color={Colors.primary} />
+              <Text style={styles.addAttachmentText}>Add File</Text>
+            </Pressable>
+          </View>
+
+          {attachments.length > 0 ? (
+            <View style={styles.attachmentList}>
+              {attachments.map((file, index) => (
+                <View key={index} style={styles.attachmentItem}>
+                  <Ionicons name="document-attach-outline" size={20} color={Colors.textSecondary} />
+                  <Text style={styles.attachmentName} numberOfLines={1}>{file.name}</Text>
+                  <Pressable onPress={() => removeAttachment(index)} hitSlop={8}>
+                    <Ionicons name="close-circle" size={20} color={Colors.danger} />
+                  </Pressable>
+                </View>
+              ))}
+            </View>
+          ) : (
+            <Text style={styles.noAttachmentsText}>No files attached</Text>
+          )}
+        </View>
+
         <Pressable
           onPress={generateAndShare}
           style={({ pressed }) => [styles.generateButton, pressed && { opacity: 0.85, transform: [{ scale: 0.98 }] }]}
@@ -167,6 +249,14 @@ const styles = StyleSheet.create({
   fieldLabel: { fontSize: 13, fontFamily: 'Inter_600SemiBold', color: Colors.textSecondary, textTransform: 'uppercase' as const, letterSpacing: 0.3 },
   fieldInput: { backgroundColor: Colors.background, borderRadius: 10, paddingHorizontal: 14, height: 44, fontSize: 15, fontFamily: 'Inter_400Regular', color: Colors.text, borderWidth: 1, borderColor: Colors.borderLight },
   textArea: { height: 120, paddingTop: 12, textAlignVertical: 'top' as const },
+  attachmentsHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  addAttachmentButton: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  addAttachmentText: { fontSize: 14, fontFamily: 'Inter_600SemiBold', color: Colors.primary },
+  attachmentList: { gap: 8, marginTop: 4 },
+  attachmentItem: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: Colors.background, padding: 10, borderRadius: 8, borderWidth: 1, borderColor: Colors.borderLight },
+  attachmentName: { flex: 1, fontSize: 14, fontFamily: 'Inter_400Regular', color: Colors.text },
+  noAttachmentsText: { fontSize: 14, fontFamily: 'Inter_400Regular', color: Colors.textTertiary, fontStyle: 'italic', textAlign: 'center', paddingVertical: 8 },
   generateButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: Colors.primary, borderRadius: 14, height: 52, marginTop: 8 },
   generateButtonText: { fontSize: 17, fontFamily: 'Inter_600SemiBold', color: '#FFF' },
 });
+
