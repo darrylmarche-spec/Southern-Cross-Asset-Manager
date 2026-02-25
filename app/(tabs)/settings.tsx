@@ -125,6 +125,14 @@ export default function SettingsScreen() {
           </View>
         </View>
 
+        <Pressable 
+          onPress={handleLogout} 
+          style={({ pressed }) => [styles.fullLogoutButton, pressed && { opacity: 0.8, transform: [{ scale: 0.98 }] }]}
+        >
+          <Ionicons name="log-out-outline" size={20} color={Colors.danger} />
+          <Text style={styles.fullLogoutText}>Log Out</Text>
+        </Pressable>
+
         <Text style={styles.version}>SCS Checklist v1.0 \u00B7 Q 43831124, Rev. 03</Text>
       </ScrollView>
     </View>
@@ -163,5 +171,7 @@ const styles = StyleSheet.create({
   teamName: { fontSize: 14, fontFamily: 'Inter_500Medium', color: Colors.text },
   adminBadge: { fontSize: 10, fontFamily: 'Inter_700Bold', color: Colors.primary, backgroundColor: Colors.primary + '10', borderRadius: 4, paddingHorizontal: 6, paddingVertical: 2 },
   youBadge: { fontSize: 11, fontFamily: 'Inter_600SemiBold', color: Colors.primary, backgroundColor: Colors.primaryLight, borderRadius: 6, paddingHorizontal: 8, paddingVertical: 2 },
-  version: { textAlign: 'center', fontSize: 12, fontFamily: 'Inter_400Regular', color: Colors.textTertiary, marginTop: 8, marginBottom: 20 },
+  version: { textAlign: 'center', fontSize: 12, fontFamily: 'Inter_400Regular', color: Colors.textTertiary, marginTop: 16, marginBottom: 20 },
+  fullLogoutButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, backgroundColor: Colors.surface, marginHorizontal: 20, height: 56, borderRadius: 16, borderWidth: 1, borderColor: Colors.borderLight, marginTop: 8 },
+  fullLogoutText: { fontSize: 16, fontFamily: 'Inter_600SemiBold', color: Colors.danger },
 });
