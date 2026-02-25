@@ -12,21 +12,26 @@ export default function SettingsScreen() {
   const { currentUser, logout, projects, currentProject, selectProject, deleteProject, users } = useApp();
 
   const handleLogout = () => {
-    Alert.alert(
-      'Log Out',
-      'Are you sure you want to log out?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Log Out',
-          style: 'destructive',
-          onPress: () => {
-            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-            logout();
+    if (Platform.OS === 'web') {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+      logout();
+    } else {
+      Alert.alert(
+        'Log Out',
+        'Are you sure you want to log out?',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Log Out',
+            style: 'destructive',
+            onPress: () => {
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+              logout();
+            },
           },
-        },
-      ]
-    );
+        ]
+      );
+    }
   };
 
   const canAddProject = React.useMemo(() => {
