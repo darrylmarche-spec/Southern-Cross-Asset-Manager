@@ -184,13 +184,6 @@ export default function AdminScreen() {
               </Pressable>
               <Pressable 
                 style={styles.secondaryButton}
-                onPress={() => updateReport(report.id, { status: 'reviewed' })}
-              >
-                <Ionicons name="checkmark-done" size={18} color={Colors.text} />
-                <Text style={styles.secondaryButtonText}>Mark Reviewed</Text>
-              </Pressable>
-              <Pressable 
-                style={styles.secondaryButton}
                 onPress={() => handleShareReport(report)}
               >
                 <Ionicons name="share-outline" size={18} color={Colors.text} />
