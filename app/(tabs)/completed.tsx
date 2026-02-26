@@ -43,22 +43,24 @@ export default function CompletedScreen() {
       return def?.type === 'overhaul' ? s + (parseFloat(t.actDuration) || 0) : s;
     }, 0);
 
-    const completedRows = completedStates.map(state => {
-      const def = ALL_TASKS.find(d => d.uid === state.uid);
-      if (!def) return '';
-      const date = state.completedAt ? new Date(state.completedAt).toLocaleDateString('en-AU') : '';
-      return `<tr>
-        <td>${def.uid}</td>
-        <td>${def.name}</td>
-        <td>${def.section}</td>
-        <td>${def.type === 'overhaul' ? `${def.estDuration}h` : '-'}</td>
-        <td>${state.actDuration ? `${state.actDuration}h` : '-'}</td>
-        <td>${state.response || '-'}</td>
-        <td>${state.remarks || state.comments || '-'}</td>
-        <td>${state.completedBy}</td>
-        <td>${date}</td>
-      </tr>`;
-    }).join('');
+    const completedRows = [...completedStates]
+      .sort((a, b) => new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime())
+      .map(state => {
+        const def = ALL_TASKS.find(d => d.uid === state.uid);
+        if (!def) return '';
+        const date = state.completedAt ? new Date(state.completedAt).toLocaleDateString('en-AU') : '';
+        return `<tr>
+          <td>${def.uid}</td>
+          <td>${def.name}</td>
+          <td>${def.section}</td>
+          <td>${def.type === 'overhaul' ? `${def.estDuration}h` : '-'}</td>
+          <td>${state.actDuration ? `${state.actDuration}h` : '-'}</td>
+          <td>${state.response || '-'}</td>
+          <td>${state.remarks || state.comments || '-'}</td>
+          <td>${state.completedBy}</td>
+          <td>${date}</td>
+        </tr>`;
+      }).join('');
 
     const html = `<!DOCTYPE html><html><head><style>
       body { font-family: Arial, sans-serif; padding: 20px; font-size: 11px; }
