@@ -46,7 +46,7 @@ export default function CompletedScreen() {
     const completedRows = completedStates.map(state => {
       const def = ALL_TASKS.find(d => d.uid === state.uid);
       if (!def) return '';
-      const date = state.completedAt ? new Date(state.completedAt).toLocaleDateString() : '';
+      const date = state.completedAt ? new Date(state.completedAt).toLocaleDateString('en-AU') : '';
       return `<tr>
         <td>${def.uid}</td>
         <td>${def.name}</td>
@@ -58,12 +58,6 @@ export default function CompletedScreen() {
         <td>${state.completedBy}</td>
         <td>${date}</td>
       </tr>`;
-    }).join('');
-
-    const openRows = pendingStates.map(state => {
-      const def = ALL_TASKS.find(d => d.uid === state.uid);
-      if (!def) return '';
-      return `<tr><td>${def.uid}</td><td>${def.name}</td><td>${def.section}</td><td>${state.assignedTo || '-'}</td><td>${state.remarks || '-'}</td></tr>`;
     }).join('');
 
     const html = `<!DOCTYPE html><html><head><style>
@@ -96,8 +90,6 @@ export default function CompletedScreen() {
       </div>
       <h2>Completed Tasks</h2>
       <table><tr><th>UID</th><th>Task</th><th>Section</th><th>Est</th><th>Act</th><th>Response</th><th>Remarks</th><th>By</th><th>Date</th></tr>${completedRows}</table>
-      <h2>Open Items</h2>
-      <table><tr><th>UID</th><th>Task</th><th>Section</th><th>Assigned</th><th>Remarks</th></tr>${openRows}</table>
       <div class="sig-row">
         <div class="sig-block"><strong>Commissioner:</strong><br>Name: ________________<br>Date: ________________</div>
         <div class="sig-block"><strong>SAIS Inspector:</strong><br>Name: ________________<br>Date: ________________</div>
