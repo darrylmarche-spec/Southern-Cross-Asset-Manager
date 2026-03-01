@@ -33,9 +33,7 @@ export default function CompletedScreen() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setSubmitting(true);
 
-    const projectStates = taskStates.filter(t => t.projectId === currentProject.id);
-    const completedStates = projectStates.filter(t => t.status === 'completed');
-    const pendingStates = projectStates.filter(t => t.status !== 'completed');
+    const completedStates = taskStates.filter(t => t.projectId === currentProject.id && t.status === 'completed');
 
     const totalEstDuration = ALL_TASKS.filter(t => t.type === 'overhaul').reduce((s, t) => s + (t.estDuration || 0), 0);
     const totalActDuration = completedStates.reduce((s, t) => {
@@ -48,7 +46,7 @@ export default function CompletedScreen() {
       .map(state => {
         const def = ALL_TASKS.find(d => d.uid === state.uid);
         if (!def) return '';
-        const date = state.completedAt ? new Date(state.completedAt).toLocaleDateString('en-AU') : '';
+        const date = state.completedAt ? new Date(state.completedAt).toLocaleDateString('en-AU') : '-';
         return `<tr>
           <td>${def.uid}</td>
           <td>${def.name}</td>
@@ -57,8 +55,8 @@ export default function CompletedScreen() {
           <td>${state.actDuration ? `${state.actDuration}h` : '-'}</td>
           <td>${state.response || '-'}</td>
           <td>${state.remarks || state.comments || '-'}</td>
-          <td>${state.completedBy}</td>
-          <td>${date}</td>
+          <td>${state.completedBy || '-'}</td>
+          <td><strong>${date}</strong></td>
         </tr>`;
       }).join('');
 
@@ -87,11 +85,11 @@ export default function CompletedScreen() {
         <div class="info-item"><span class="info-label">Completion Date:</span> ${currentProject.dateOfCompletion}</div>
       </div>
       <div class="summary">
-        <strong>Summary:</strong> ${completedStates.length}/${projectStates.length} tasks completed |
-        Est. Hours: ${totalEstDuration}h | Act. Hours: ${totalActDuration}h | Variance: ${totalEstDuration - totalActDuration}h
+        <strong>Summary:</strong> ${completedStates.length} tasks completed |
+        Est. Hours: ${totalEstDuration}h | Act. Hours: ${totalActDuration}h | Variance: ${(totalEstDuration - totalActDuration).toFixed(1)}h
       </div>
       <h2>Completed Tasks</h2>
-      <table><tr><th>UID</th><th>Task</th><th>Section</th><th>Est</th><th>Act</th><th>Response</th><th>Remarks</th><th>By</th><th>Date</th></tr>${completedRows}</table>
+      <table><tr><th>UID</th><th>Task</th><th>Section</th><th>Est</th><th>Act</th><th>Response</th><th>Remarks</th><th>By</th><th>Completed</th></tr>${completedRows}</table>
       <div class="sig-row">
         <div class="sig-block"><strong>Commissioner:</strong><br>Name: ________________<br>Date: ________________</div>
         <div class="sig-block"><strong>SAIS Inspector:</strong><br>Name: ________________<br>Date: ________________</div>

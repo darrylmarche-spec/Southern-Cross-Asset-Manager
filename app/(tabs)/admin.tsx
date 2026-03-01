@@ -163,12 +163,9 @@ export default function AdminScreen() {
         submittedReports.map(report => (
           <View key={report.id} style={styles.reportCard}>
             <View style={styles.reportHeader}>
-              <View style={{ flex: 1, marginRight: 8 }}>
+              <View style={{ flex: 1 }}>
                 <Text style={styles.reportTitle}>{report.subject || 'Project Report'}</Text>
                 <Text style={styles.reportMeta}>By {report.submittedBy} • {new Date(report.submittedAt).toLocaleDateString()}</Text>
-              </View>
-              <View style={[styles.badge, report.status === 'reviewed' ? styles.badgeSuccess : styles.badgePending]}>
-                <Text style={styles.badgeText}>{report.status.toUpperCase()}</Text>
               </View>
             </View>
             {!!report.notes && (
@@ -270,8 +267,4 @@ const styles = StyleSheet.create({
   reportActions: { flexDirection: 'row', gap: 8, marginTop: 4, flexWrap: 'wrap' },
   secondaryButton: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: Colors.background, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, borderWidth: 1, borderColor: Colors.borderLight },
   secondaryButtonText: { fontSize: 13, fontFamily: 'Inter_500Medium', color: Colors.text },
-  badge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
-  badgePending: { backgroundColor: '#FFF9C4' },
-  badgeSuccess: { backgroundColor: '#C8E6C9' },
-  badgeText: { fontSize: 10, fontFamily: 'Inter_700Bold', color: '#1B5E20' },
 });

@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useCallback, useEffect, useRef } from 'react';
-import { View, Text, SectionList, Pressable, StyleSheet, Platform } from 'react-native';
+import { View, Text, ScrollView, Pressable, StyleSheet, Platform } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -7,14 +7,6 @@ import * as Haptics from 'expo-haptics';
 import Colors from '@/constants/colors';
 import { useApp } from '@/contexts/AppContext';
 import { ALL_TASKS, SECTIONS, type TaskDefinition } from '@/data/checklist-data';
-
-interface SectionData {
-  title: string;
-  sectionIndex: number;
-  data: TaskDefinition[];
-  completedCount: number;
-  totalCount: number;
-}
 
 function TaskRow({ task, taskState, onPress }: { task: TaskDefinition; taskState: any; onPress: () => void }) {
   const isOverhaul = task.type === 'overhaul';
@@ -43,7 +35,7 @@ function TaskRow({ task, taskState, onPress }: { task: TaskDefinition; taskState
               backgroundColor: taskState.response === 'yes' || taskState.response === 'check' ? Colors.successLight :
                 taskState.response === 'V' ? Colors.dangerLight :
                 taskState.response === 'O' ? Colors.warningLight :
-                taskState.response === 'na' ? Colors.surfaceSecondary : Colors.surfaceSecondary
+                Colors.surfaceSecondary
             }]}>
               <Text style={[styles.responseText, {
                 color: taskState.response === 'yes' || taskState.response === 'check' ? Colors.success :
@@ -68,25 +60,20 @@ function TaskRow({ task, taskState, onPress }: { task: TaskDefinition; taskState
 export default function ChecklistScreen() {
   const insets = useSafeAreaInsets();
   const { currentProject, taskStates, getTaskState, focusSection, setFocusSection } = useApp();
-  const [collapsedSections, setCollapsedSections] = useState<Set<number>>(new Set([0,1,2,3,4,5,6,7]));
-  const sectionListRef = useRef<SectionList>(null);
+  const [overhaulOpen, setOverhaulOpen] = useState(false);
+  const [commissioningOpen, setCommissioningOpen] = useState(false);
+  const [openSubSections, setOpenSubSections] = useState<Set<number>>(new Set());
+  const scrollRef = useRef<ScrollView>(null);
 
   useEffect(() => {
     if (focusSection !== null) {
-      const allCollapsed = new Set([0,1,2,3,4,5,6,7]);
-      allCollapsed.delete(focusSection);
-      setCollapsedSections(allCollapsed);
+      if (focusSection === 0) {
+        setOverhaulOpen(true);
+      } else {
+        setCommissioningOpen(true);
+        setOpenSubSections(prev => new Set([...prev, focusSection]));
+      }
       setFocusSection(null);
-      setTimeout(() => {
-        try {
-          sectionListRef.current?.scrollToLocation({
-            sectionIndex: focusSection,
-            itemIndex: 0,
-            viewOffset: 0,
-            animated: true,
-          });
-        } catch {}
-      }, 150);
     }
   }, [focusSection]);
 
@@ -95,33 +82,41 @@ export default function ChecklistScreen() {
     return taskStates.filter(t => t.projectId === currentProject.id);
   }, [currentProject, taskStates]);
 
-  const sections: SectionData[] = useMemo(() => {
-    return SECTIONS.filter(s => s.index <= 7).map(section => {
-      const sectionTasks = ALL_TASKS.filter(t => t.sectionIndex === section.index);
-      const pendingTasks = sectionTasks.filter(t => {
+  const getStats = useCallback((sectionIndices: number[]) => {
+    let total = 0;
+    let completed = 0;
+    sectionIndices.forEach(idx => {
+      const tasks = ALL_TASKS.filter(t => t.sectionIndex === idx);
+      total += tasks.length;
+      completed += tasks.filter(t => {
         const state = projectTasks.find(s => s.uid === t.uid);
-        return !state || state.status !== 'completed';
-      });
-      const completedCount = sectionTasks.length - pendingTasks.length;
-      return {
-        title: `${section.index}. ${section.name}`,
-        sectionIndex: section.index,
-        data: collapsedSections.has(section.index) ? [] : pendingTasks,
-        completedCount,
-        totalCount: sectionTasks.length,
-      };
+        return state?.status === 'completed';
+      }).length;
     });
-  }, [projectTasks, collapsedSections]);
+    return { total, completed };
+  }, [projectTasks]);
 
-  const toggleSection = useCallback((index: number) => {
+  const getPendingTasks = useCallback((sectionIndex: number): TaskDefinition[] => {
+    return ALL_TASKS.filter(t => {
+      if (t.sectionIndex !== sectionIndex) return false;
+      const state = projectTasks.find(s => s.uid === t.uid);
+      return !state || state.status !== 'completed';
+    });
+  }, [projectTasks]);
+
+  const toggleSubSection = useCallback((index: number) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setCollapsedSections(prev => {
+    setOpenSubSections(prev => {
       const next = new Set(prev);
       if (next.has(index)) next.delete(index);
       else next.add(index);
       return next;
     });
   }, []);
+
+  const commissioningSections = SECTIONS.filter(s => s.index >= 1 && s.index <= 7);
+  const overhaulStats = getStats([0]);
+  const commissioningStats = getStats(commissioningSections.map(s => s.index));
 
   if (!currentProject) {
     return (
@@ -139,47 +134,158 @@ export default function ChecklistScreen() {
         <Text style={styles.headerTitle}>Active Tasks</Text>
         <Text style={styles.headerSubtitle}>{currentProject.projectName}</Text>
       </View>
-      <SectionList
-        ref={sectionListRef}
-        sections={sections}
-        keyExtractor={(item) => item.uid}
-        renderItem={({ item }) => (
-          <TaskRow
-            task={item}
-            taskState={getTaskState(item.uid)}
-            onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              router.push({ pathname: '/task/[id]', params: { id: item.uid } });
-            }}
-          />
-        )}
-        renderSectionHeader={({ section }) => {
-          const s = section as SectionData;
-          const isCollapsed = collapsedSections.has(s.sectionIndex);
-          const allDone = s.completedCount === s.totalCount && s.totalCount > 0;
-          return (
-            <Pressable
-              onPress={() => toggleSection(s.sectionIndex)}
-              style={[styles.sectionHeader, allDone && styles.sectionHeaderDone]}
-            >
-              <Ionicons
-                name={isCollapsed ? 'chevron-forward' : 'chevron-down'}
-                size={16}
-                color={allDone ? Colors.success : Colors.textSecondary}
-              />
-              <Text style={[styles.sectionTitle, allDone && { color: Colors.success }]}>{s.title}</Text>
-              <View style={[styles.countBadge, allDone && { backgroundColor: Colors.successLight }]}>
-                <Text style={[styles.countText, allDone && { color: Colors.success }]}>
-                  {s.completedCount}/{s.totalCount}
-                </Text>
-              </View>
-            </Pressable>
-          );
-        }}
-        contentContainerStyle={{ paddingBottom: insets.bottom + 100 }}
-        stickySectionHeadersEnabled={false}
+
+      <ScrollView
+        ref={scrollRef}
         showsVerticalScrollIndicator={false}
-      />
+        contentContainerStyle={{ paddingBottom: insets.bottom + 100 }}
+      >
+        {/* Overhaul Workflow */}
+        <Pressable
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            setOverhaulOpen(v => !v);
+          }}
+          style={[
+            styles.topHeader,
+            overhaulStats.completed === overhaulStats.total && overhaulStats.total > 0 && styles.topHeaderDone,
+          ]}
+        >
+          <Ionicons
+            name={overhaulOpen ? 'chevron-down' : 'chevron-forward'}
+            size={18}
+            color={overhaulStats.completed === overhaulStats.total && overhaulStats.total > 0 ? Colors.success : Colors.textSecondary}
+          />
+          <Text style={[
+            styles.topHeaderTitle,
+            overhaulStats.completed === overhaulStats.total && overhaulStats.total > 0 && { color: Colors.success },
+          ]}>
+            Overhaul Workflow
+          </Text>
+          <View style={[
+            styles.countBadge,
+            overhaulStats.completed === overhaulStats.total && overhaulStats.total > 0 && { backgroundColor: Colors.successLight },
+          ]}>
+            <Text style={[
+              styles.countText,
+              overhaulStats.completed === overhaulStats.total && overhaulStats.total > 0 && { color: Colors.success },
+            ]}>
+              {overhaulStats.completed}/{overhaulStats.total}
+            </Text>
+          </View>
+        </Pressable>
+
+        {overhaulOpen && (
+          <View>
+            {getPendingTasks(0).length === 0 ? (
+              <View style={styles.allDoneRow}>
+                <Ionicons name="checkmark-circle" size={16} color={Colors.success} />
+                <Text style={styles.allDoneText}>All tasks complete</Text>
+              </View>
+            ) : (
+              getPendingTasks(0).map(task => (
+                <TaskRow
+                  key={task.uid}
+                  task={task}
+                  taskState={getTaskState(task.uid)}
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    router.push({ pathname: '/task/[id]', params: { id: task.uid } });
+                  }}
+                />
+              ))
+            )}
+          </View>
+        )}
+
+        {/* Commissioning */}
+        <Pressable
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            setCommissioningOpen(v => !v);
+          }}
+          style={[
+            styles.topHeader,
+            { marginTop: 6 },
+            commissioningStats.completed === commissioningStats.total && commissioningStats.total > 0 && styles.topHeaderDone,
+          ]}
+        >
+          <Ionicons
+            name={commissioningOpen ? 'chevron-down' : 'chevron-forward'}
+            size={18}
+            color={commissioningStats.completed === commissioningStats.total && commissioningStats.total > 0 ? Colors.success : Colors.textSecondary}
+          />
+          <Text style={[
+            styles.topHeaderTitle,
+            commissioningStats.completed === commissioningStats.total && commissioningStats.total > 0 && { color: Colors.success },
+          ]}>
+            Commissioning
+          </Text>
+          <View style={[
+            styles.countBadge,
+            commissioningStats.completed === commissioningStats.total && commissioningStats.total > 0 && { backgroundColor: Colors.successLight },
+          ]}>
+            <Text style={[
+              styles.countText,
+              commissioningStats.completed === commissioningStats.total && commissioningStats.total > 0 && { color: Colors.success },
+            ]}>
+              {commissioningStats.completed}/{commissioningStats.total}
+            </Text>
+          </View>
+        </Pressable>
+
+        {commissioningOpen && commissioningSections.map(section => {
+          const stats = getStats([section.index]);
+          const allDone = stats.completed === stats.total && stats.total > 0;
+          const isOpen = openSubSections.has(section.index);
+          const pendingTasks = getPendingTasks(section.index);
+          return (
+            <View key={section.index}>
+              <Pressable
+                onPress={() => toggleSubSection(section.index)}
+                style={[styles.subHeader, allDone && styles.subHeaderDone]}
+              >
+                <Ionicons
+                  name={isOpen ? 'chevron-down' : 'chevron-forward'}
+                  size={15}
+                  color={allDone ? Colors.success : Colors.textSecondary}
+                />
+                <Text style={[styles.subHeaderTitle, allDone && { color: Colors.success }]}>
+                  {section.index}. {section.name}
+                </Text>
+                <View style={[styles.countBadge, allDone && { backgroundColor: Colors.successLight }]}>
+                  <Text style={[styles.countText, allDone && { color: Colors.success }]}>
+                    {stats.completed}/{stats.total}
+                  </Text>
+                </View>
+              </Pressable>
+
+              {isOpen && (
+                <View>
+                  {pendingTasks.length === 0 ? (
+                    <View style={styles.allDoneRow}>
+                      <Ionicons name="checkmark-circle" size={16} color={Colors.success} />
+                      <Text style={styles.allDoneText}>All tasks complete</Text>
+                    </View>
+                  ) : (
+                    pendingTasks.map(task => (
+                      <TaskRow
+                        key={task.uid}
+                        task={task}
+                        taskState={getTaskState(task.uid)}
+                        onPress={() => {
+                          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                          router.push({ pathname: '/task/[id]', params: { id: task.uid } });
+                        }}
+                      />
+                    ))
+                  )}
+                </View>
+              )}
+            </View>
+          );
+        })}
+      </ScrollView>
     </View>
   );
 }
@@ -192,16 +298,27 @@ const styles = StyleSheet.create({
   header: { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 8 },
   headerTitle: { fontSize: 28, fontFamily: 'Inter_700Bold', color: Colors.text },
   headerSubtitle: { fontSize: 14, fontFamily: 'Inter_400Regular', color: Colors.textSecondary, marginTop: 2 },
-  sectionHeader: {
+  topHeader: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    paddingHorizontal: 20, paddingVertical: 16,
+    backgroundColor: Colors.surface,
+    borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: Colors.borderLight,
+    borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: Colors.borderLight,
+  },
+  topHeaderDone: { backgroundColor: '#F0FFF4' },
+  topHeaderTitle: { flex: 1, fontSize: 17, fontFamily: 'Inter_700Bold', color: Colors.text },
+  subHeader: {
     flexDirection: 'row', alignItems: 'center', gap: 8,
-    paddingHorizontal: 20, paddingVertical: 12,
+    paddingHorizontal: 28, paddingVertical: 12,
     backgroundColor: Colors.background,
     borderBottomWidth: 1, borderBottomColor: Colors.borderLight,
   },
-  sectionHeaderDone: { backgroundColor: '#F0FFF4' },
-  sectionTitle: { flex: 1, fontSize: 15, fontFamily: 'Inter_600SemiBold', color: Colors.text },
+  subHeaderDone: { backgroundColor: '#F0FFF4' },
+  subHeaderTitle: { flex: 1, fontSize: 14, fontFamily: 'Inter_600SemiBold', color: Colors.text },
   countBadge: { backgroundColor: Colors.surfaceSecondary, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 3 },
   countText: { fontSize: 12, fontFamily: 'Inter_600SemiBold', color: Colors.textSecondary },
+  allDoneRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 28, paddingVertical: 14, backgroundColor: Colors.surface, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: Colors.borderLight },
+  allDoneText: { fontSize: 13, fontFamily: 'Inter_400Regular', color: Colors.success },
   taskRow: {
     flexDirection: 'row', alignItems: 'center', gap: 12,
     paddingHorizontal: 20, paddingVertical: 14,
