@@ -117,7 +117,7 @@ interface AppContextValue {
   submitReport: (report: Omit<SubmittedReport, 'id' | 'submittedAt' | 'status'>) => void;
   updateReport: (id: string, updates: Partial<SubmittedReport>) => void;
   addUser: (username: string, role: 'admin' | 'member') => Promise<boolean>;
-  deleteUser: (username: string) => Promise<void>;
+  deleteUser: (username: string) => Promise<boolean>;
   refreshUsers: () => Promise<void>;
   adminMessages: AdminMessage[];
   sendAdminMessage: (message: Omit<AdminMessage, 'id' | 'sentAt' | 'read'>) => void;
