@@ -47,9 +47,14 @@ export default function AdminScreen() {
         { 
           text: 'Delete', 
           style: 'destructive',
-          onPress: () => {
-            deleteUser(username);
-            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          onPress: async () => {
+            const success = await deleteUser(username);
+            if (success) {
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            } else {
+              Alert.alert('Error', 'Failed to delete member. Please try again.');
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+            }
           }
         }
       ]

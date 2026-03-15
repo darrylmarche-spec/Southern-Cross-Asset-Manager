@@ -524,15 +524,22 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const deleteUser = useCallback(async (username: string): Promise<void> => {
+  const deleteUser = useCallback(async (username: string): Promise<boolean> => {
     try {
-      await fetch(`${API_BASE}/api/users/${encodeURIComponent(username)}`, {
+      const res = await fetch(`${API_BASE}/api/users/${encodeURIComponent(username)}`, {
         method: 'DELETE',
       });
+
+      if (res.ok) {
+        setUsers(prev => prev.filter(u => u.username !== username));
+        return true;
+      }
+      console.log('Delete user failed:', res.status);
+      return false;
     } catch (e) {
-      console.log('Server deleteUser failed');
+      console.log('Server deleteUser failed:', e);
+      return false;
     }
-    setUsers(prev => prev.filter(u => u.username !== username));
   }, []);
 
   const sendAdminMessage = useCallback(async (message: Omit<AdminMessage, 'id' | 'sentAt' | 'read'>) => {
