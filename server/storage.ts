@@ -1,6 +1,19 @@
-import { type User, type InsertUser, type Project, type TaskState, type Report, type Message, users, projects, taskStates, reports, messages } from "@shared/schema";
+import {
+  type User,
+  type InsertUser,
+  type Project,
+  type TaskState,
+  type Report,
+  type Message,
+  users,
+  projects,
+  taskStates,
+  reports,
+  messages,
+} from "@shared/schema";
 import { db } from "./db";
-import { eq, and } from "drizzle-orm";
+import { eq, and, sql } from "drizzle-orm";
+import { hashPassword } from "../lib/auth";
 
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
@@ -38,13 +51,23 @@ export class DatabaseStorage implements IStorage {
     return user;
   }
 
+  // Fix #4: use a database-level case-insensitive comparison instead of
+  // loading all users into memory and filtering in JavaScript.
   async getUserByUsername(username: string): Promise<User | undefined> {
-    const allUsers = await db.select().from(users);
-    return allUsers.find(u => u.username.toLowerCase() === username.toLowerCase());
+    const [user] = await db
+      .select()
+      .from(users)
+      .where(sql`lower(${users.username}) = lower(${username})`);
+    return user;
   }
 
+  // Fix #1: hash the password before storing it.
   async createUser(insertUser: InsertUser): Promise<User> {
-    const [user] = await db.insert(users).values(insertUser).returning();
+    const hashed = await hashPassword(insertUser.password);
+    const [user] = await db
+      .insert(users)
+      .values({ ...insertUser, password: hashed })
+      .returning();
     return user;
   }
 
@@ -59,16 +82,25 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
+  // Fix #12: seed passwords come from environment variables, not source code.
   async seedDefaults(): Promise<void> {
     const defaults = [
-      { username: "Davor", password: "adminpassword", role: "admin" },
-      { username: "Darryl", password: "schindler1", role: "admin" },
+      {
+        username: "Davor",
+        password: process.env.SEED_PASSWORD_DAVOR ?? "change-me-in-production",
+        role: "admin" as const,
+      },
+      {
+        username: "Darryl",
+        password: process.env.SEED_PASSWORD_DARRYL ?? "change-me-in-production",
+        role: "admin" as const,
+      },
     ];
 
     for (const def of defaults) {
       const existing = await this.getUserByUsername(def.username);
       if (!existing) {
-        await this.createUser(def);
+        await this.createUser(def); // createUser hashes the password
       }
     }
   }
@@ -88,15 +120,23 @@ export class DatabaseStorage implements IStorage {
   }
 
   async updateProject(id: string, updates: Partial<Omit<Project, "id">>): Promise<Project | undefined> {
-    const [updated] = await db.update(projects).set(updates).where(eq(projects.id, id)).returning();
+    const [updated] = await db
+      .update(projects)
+      .set(updates)
+      .where(eq(projects.id, id))
+      .returning();
     return updated;
   }
 
+  // Fix #5: wrap cascade delete in a transaction so a mid-flight failure
+  // cannot leave orphaned task states, reports, or messages.
   async deleteProject(id: string): Promise<void> {
-    await db.delete(taskStates).where(eq(taskStates.projectId, id));
-    await db.delete(reports).where(eq(reports.projectId, id));
-    await db.delete(messages).where(eq(messages.projectId, id));
-    await db.delete(projects).where(eq(projects.id, id));
+    await db.transaction(async (tx) => {
+      await tx.delete(taskStates).where(eq(taskStates.projectId, id));
+      await tx.delete(reports).where(eq(reports.projectId, id));
+      await tx.delete(messages).where(eq(messages.projectId, id));
+      await tx.delete(projects).where(eq(projects.id, id));
+    });
   }
 
   async getTaskStatesByProjectId(projectId: string): Promise<TaskState[]> {
@@ -118,7 +158,11 @@ export class DatabaseStorage implements IStorage {
     return created;
   }
 
-  async updateTaskState(projectId: string, uid: string, updates: Partial<TaskState>): Promise<TaskState | undefined> {
+  async updateTaskState(
+    projectId: string,
+    uid: string,
+    updates: Partial<TaskState>,
+  ): Promise<TaskState | undefined> {
     const { id: _id, ...safeUpdates } = updates as any;
     const [updated] = await db
       .update(taskStates)
@@ -143,7 +187,11 @@ export class DatabaseStorage implements IStorage {
 
   async updateReport(id: string, updates: Partial<Report>): Promise<Report | undefined> {
     const { id: _id, ...safeUpdates } = updates as any;
-    const [updated] = await db.update(reports).set(safeUpdates).where(eq(reports.id, id)).returning();
+    const [updated] = await db
+      .update(reports)
+      .set(safeUpdates)
+      .where(eq(reports.id, id))
+      .returning();
     return updated;
   }
 

@@ -4,10 +4,13 @@
  * Used by:
  *  - storage.test.ts  (contract / behaviour tests, no real DB required)
  *  - routes.test.ts   (injected via vi.mock so route logic can be tested in isolation)
+ *
+ * Mirrors DatabaseStorage behaviour including password hashing on createUser.
  */
 
 import type { IStorage } from '../storage';
 import type { User, InsertUser, Project, TaskState, Report, Message } from '../../shared/schema';
+import { hashPassword } from '../../lib/auth';
 
 export class InMemoryStorage implements IStorage {
   private users: User[] = [];
@@ -41,10 +44,12 @@ export class InMemoryStorage implements IStorage {
     return this.users.find(u => u.username.toLowerCase() === username.toLowerCase());
   }
 
+  // Fix #1: hash the password before storing, matching DatabaseStorage.
   async createUser(insertUser: InsertUser): Promise<User> {
     const existing = await this.getUserByUsername(insertUser.username);
     if (existing) throw new Error(`Username "${insertUser.username}" already exists`);
-    const user: User = { id: this.nextId(), role: 'member', ...insertUser };
+    const hashed = await hashPassword(insertUser.password);
+    const user: User = { id: this.nextId(), role: 'member', ...insertUser, password: hashed };
     this.users.push(user);
     return user;
   }
@@ -61,8 +66,8 @@ export class InMemoryStorage implements IStorage {
 
   async seedDefaults(): Promise<void> {
     const defaults = [
-      { username: 'Davor', password: 'adminpassword', role: 'admin' as const },
-      { username: 'Darryl', password: 'schindler1', role: 'admin' as const },
+      { username: 'Davor', password: process.env.SEED_PASSWORD_DAVOR ?? 'change-me', role: 'admin' as const },
+      { username: 'Darryl', password: process.env.SEED_PASSWORD_DARRYL ?? 'change-me', role: 'admin' as const },
     ];
     for (const d of defaults) {
       const existing = await this.getUserByUsername(d.username);

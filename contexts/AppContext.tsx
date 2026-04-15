@@ -1,8 +1,11 @@
 import React, { createContext, useContext, useState, useEffect, useMemo, useCallback, ReactNode } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
-import { ALL_TASKS, DEFAULT_USERS, type TaskDefinition, type ResponseValue } from '@/data/checklist-data';
+import { ALL_TASKS, type TaskDefinition, type ResponseValue } from '@/data/checklist-data';
 import { mapServerProject, mapServerTaskState, mapServerReport, mapServerMessage } from '@/lib/mappers';
+
+// mapServerProject, mapServerTaskState, mapServerReport, mapServerMessage
+// are imported from @/lib/mappers above.
 
 function getApiBaseUrl() {
   const domain = typeof process !== 'undefined' && process.env?.EXPO_PUBLIC_DOMAIN;
@@ -16,6 +19,22 @@ function getApiBaseUrl() {
 }
 
 const API_BASE = getApiBaseUrl();
+
+/**
+ * Wrapper around fetch that always sends session cookies.
+ * Fix #2 (client side): credentials: 'include' ensures the session cookie is
+ * attached to every API request so the server can authenticate the caller.
+ */
+function apiFetch(url: string, options: RequestInit = {}): Promise<Response> {
+  return fetch(url, {
+    ...options,
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(options.headers ?? {}),
+    },
+  });
+}
 
 export interface UserAccount {
   username: string;
@@ -132,12 +151,9 @@ const STORAGE_KEYS = {
   CURRENT_PROJECT: '@schindler_current_project',
 };
 
-// mapServerProject, mapServerTaskState, mapServerReport, mapServerMessage
-// are imported from @/lib/mappers above.
-
 export function AppProvider({ children }: { children: ReactNode }) {
   const [currentUser, setCurrentUser] = useState<UserAccount | null>(null);
-  const [users, setUsers] = useState<UserAccount[]>(DEFAULT_USERS);
+  const [users, setUsers] = useState<UserAccount[]>([]);
   const [projects, setProjects] = useState<ProjectInfo[]>([]);
   const [currentProject, setCurrentProject] = useState<ProjectInfo | null>(null);
   const [taskStates, setTaskStates] = useState<TaskState[]>([]);
@@ -156,16 +172,24 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const savedCurrentProject = await AsyncStorage.getItem(STORAGE_KEYS.CURRENT_PROJECT);
 
       if (savedCurrentUser) setCurrentUser(JSON.parse(savedCurrentUser));
-      if (savedCurrentProject) setCurrentProject(JSON.parse(savedCurrentProject));
 
       try {
         const [usersRes, projectsRes, taskStatesRes, reportsRes, messagesRes] = await Promise.all([
-          fetch(`${API_BASE}/api/users`),
-          fetch(`${API_BASE}/api/projects`),
-          fetch(`${API_BASE}/api/task-states`),
-          fetch(`${API_BASE}/api/reports`),
-          fetch(`${API_BASE}/api/messages`),
+          apiFetch(`${API_BASE}/api/users`),
+          apiFetch(`${API_BASE}/api/projects`),
+          apiFetch(`${API_BASE}/api/task-states`),
+          apiFetch(`${API_BASE}/api/reports`),
+          apiFetch(`${API_BASE}/api/messages`),
         ]);
+
+        // Fix #7 / Fix #2: if any core request returns 401, the session has
+        // expired. Clear auth state so the user is redirected to login.
+        if (usersRes.status === 401 || projectsRes.status === 401) {
+          setCurrentUser(null);
+          setCurrentProject(null);
+          await AsyncStorage.multiRemove([STORAGE_KEYS.CURRENT_USER, STORAGE_KEYS.CURRENT_PROJECT]);
+          return;
+        }
 
         if (usersRes.ok) {
           const serverUsers = await usersRes.json();
@@ -179,7 +203,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
         if (projectsRes.ok) {
           const serverProjects = await projectsRes.json();
-          setProjects(serverProjects.map(mapServerProject));
+          const mapped = serverProjects.map(mapServerProject);
+          setProjects(mapped);
+
+          // Fix #7: re-validate the persisted currentProject against the live
+          // list. If it was deleted server-side, clear it so the user picks a
+          // new one rather than operating against a phantom project.
+          if (savedCurrentProject) {
+            const parsed: ProjectInfo = JSON.parse(savedCurrentProject);
+            const stillExists = mapped.find((p: ProjectInfo) => p.id === parsed.id);
+            setCurrentProject(stillExists ?? null);
+            if (!stillExists) {
+              await AsyncStorage.removeItem(STORAGE_KEYS.CURRENT_PROJECT);
+            }
+          }
         }
 
         if (taskStatesRes.ok) {
@@ -208,7 +245,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const refreshUsers = useCallback(async () => {
     try {
-      const res = await fetch(`${API_BASE}/api/users`);
+      const res = await apiFetch(`${API_BASE}/api/users`);
       if (res.ok) {
         const serverUsers = await res.json();
         const mapped: UserAccount[] = serverUsers.map((u: any) => ({
@@ -225,28 +262,31 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const login = useCallback(async (username: string, password: string): Promise<boolean> => {
     try {
-      const res = await fetch(`${API_BASE}/api/auth/login`, {
+      const res = await apiFetch(`${API_BASE}/api/auth/login`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, password }),
       });
 
       if (res.ok) {
         const data = await res.json();
+        // Fix #1 (client side): do not persist the plaintext password in
+        // AsyncStorage. Only username and role are stored.
         const user: UserAccount = {
           username: data.username,
-          password: password,
+          password: '',
           role: data.role as 'admin' | 'member',
         };
         setCurrentUser(user);
         await AsyncStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(user));
 
         try {
+          // Fix #3 (client side): no longer passing username/role as query
+          // params — the server reads them from the session now.
           const [projectsRes, taskStatesRes, reportsRes, messagesRes] = await Promise.all([
-            fetch(`${API_BASE}/api/projects?username=${encodeURIComponent(data.username)}&role=${encodeURIComponent(data.role)}`),
-            fetch(`${API_BASE}/api/task-states`),
-            fetch(`${API_BASE}/api/reports`),
-            fetch(`${API_BASE}/api/messages`),
+            apiFetch(`${API_BASE}/api/projects`),
+            apiFetch(`${API_BASE}/api/task-states`),
+            apiFetch(`${API_BASE}/api/reports`),
+            apiFetch(`${API_BASE}/api/messages`),
           ]);
 
           if (projectsRes.ok) {
@@ -273,20 +313,25 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
       return false;
     } catch (e) {
-      console.log('Server login failed, trying local fallback');
-      const user = users.find(u => u.username.toLowerCase() === username.toLowerCase() && u.password === password);
-      if (user) {
-        setCurrentUser(user);
-        AsyncStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(user));
-        return true;
-      }
+      // Fix #12 / Fix #2 (client side): removed the local plaintext-password
+      // fallback that allowed bypassing server authentication.
+      console.log('Login request failed:', e);
       return false;
     }
-  }, [users]);
+  }, []);
 
   const logout = useCallback(async () => {
+    try {
+      await apiFetch(`${API_BASE}/api/auth/logout`, { method: 'POST' });
+    } catch (e) {
+      console.log('Server logout failed, clearing local state anyway');
+    }
     setCurrentUser(null);
     setCurrentProject(null);
+    setProjects([]);
+    setTaskStates([]);
+    setSubmittedReports([]);
+    setAdminMessages([]);
     await AsyncStorage.multiRemove([STORAGE_KEYS.CURRENT_USER, STORAGE_KEYS.CURRENT_PROJECT]);
   }, []);
 
@@ -304,9 +349,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     };
 
     try {
-      const res = await fetch(`${API_BASE}/api/projects`, {
+      const res = await apiFetch(`${API_BASE}/api/projects`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(projectData),
       });
 
@@ -335,9 +379,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         }));
 
         try {
-          const tasksRes = await fetch(`${API_BASE}/api/task-states/bulk`, {
+          const tasksRes = await apiFetch(`${API_BASE}/api/task-states/bulk`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ states: newTaskStates }),
           });
           if (tasksRes.ok) {
@@ -362,9 +405,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
 
     try {
-      await fetch(`${API_BASE}/api/projects/${id}`, {
+      await apiFetch(`${API_BASE}/api/projects/${id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updates),
       });
     } catch (e) {
@@ -391,7 +433,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
 
     try {
-      await fetch(`${API_BASE}/api/projects/${id}`, { method: 'DELETE' });
+      await apiFetch(`${API_BASE}/api/projects/${id}`, { method: 'DELETE' });
     } catch (e) {
       console.log('Failed to delete project on server');
     }
@@ -405,9 +447,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     };
 
     try {
-      const res = await fetch(`${API_BASE}/api/reports`, {
+      const res = await apiFetch(`${API_BASE}/api/reports`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(reportData),
       });
 
@@ -430,9 +471,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setSubmittedReports(prev => prev.map(r => r.id === id ? { ...r, ...updates } : r));
 
     try {
-      await fetch(`${API_BASE}/api/reports/${id}`, {
+      await apiFetch(`${API_BASE}/api/reports/${id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updates),
       });
     } catch (e) {
@@ -442,9 +482,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const addUser = useCallback(async (username: string, role: 'admin' | 'member'): Promise<boolean> => {
     try {
-      const res = await fetch(`${API_BASE}/api/users`, {
+      const res = await apiFetch(`${API_BASE}/api/users`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, role }),
       });
 
@@ -452,7 +491,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         const data = await res.json();
         const newUser: UserAccount = {
           username: data.username,
-          password: 'password123',
+          password: '',
           role: data.role as 'admin' | 'member',
         };
         setUsers(prev => [...prev, newUser]);
@@ -467,7 +506,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const deleteUser = useCallback(async (username: string): Promise<boolean> => {
     try {
-      const res = await fetch(`${API_BASE}/api/users/${encodeURIComponent(username)}`, {
+      const res = await apiFetch(`${API_BASE}/api/users/${encodeURIComponent(username)}`, {
         method: 'DELETE',
       });
 
@@ -491,9 +530,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     };
 
     try {
-      const res = await fetch(`${API_BASE}/api/messages`, {
+      const res = await apiFetch(`${API_BASE}/api/messages`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(messageData),
       });
 
@@ -516,7 +554,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setAdminMessages(prev => prev.map(m => m.id === id ? { ...m, read: true } : m));
 
     try {
-      await fetch(`${API_BASE}/api/messages/${id}/read`, { method: 'PUT' });
+      await apiFetch(`${API_BASE}/api/messages/${id}/read`, { method: 'PUT' });
     } catch (e) {
       console.log('Failed to mark message read on server');
     }
@@ -531,9 +569,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     ));
 
     try {
-      await fetch(`${API_BASE}/api/task-states/${projectId}/${uid}`, {
+      await apiFetch(`${API_BASE}/api/task-states/${projectId}/${uid}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(updates),
       });
     } catch (e) {
@@ -555,9 +592,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     ));
 
     try {
-      await fetch(`${API_BASE}/api/task-states/${projectId}/${uid}`, {
+      await apiFetch(`${API_BASE}/api/task-states/${projectId}/${uid}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(completionUpdates),
       });
     } catch (e) {

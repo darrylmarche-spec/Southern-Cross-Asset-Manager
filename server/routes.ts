@@ -1,8 +1,37 @@
-import type { Express, Request, Response } from "express";
+import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "node:http";
 import { storage } from "./storage";
+import { verifyPassword } from "../lib/auth";
+import {
+  insertProjectSchema,
+  insertTaskStateSchema,
+  insertReportSchema,
+  insertMessageSchema,
+} from "@shared/schema";
+
+// ── Session type augmentation ─────────────────────────────────────────────────
+
+declare module "express-session" {
+  interface SessionData {
+    user: { username: string; role: string };
+  }
+}
+
+// ── Auth middleware ───────────────────────────────────────────────────────────
+
+function requireAuth(req: Request, res: Response, next: NextFunction) {
+  if (!req.session?.user) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+  next();
+}
+
+// ── Route registration ────────────────────────────────────────────────────────
 
 export async function registerRoutes(app: Express): Promise<Server> {
+
+  // ── Auth ──────────────────────────────────────────────────────────────────
+
   app.post("/api/auth/login", async (req: Request, res: Response) => {
     try {
       const { username, password } = req.body;
@@ -11,27 +40,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const user = await storage.getUserByUsername(username);
-      if (!user || user.password !== password) {
+      // Fix #1: use timing-safe password verification against the stored hash.
+      if (!user || !(await verifyPassword(password, user.password))) {
         return res.status(401).json({ error: "Invalid username or password" });
       }
 
-      return res.json({
-        username: user.username,
-        role: user.role,
-      });
+      // Fix #2: persist identity in a server-side session.
+      req.session.user = { username: user.username, role: user.role };
+
+      return res.json({ username: user.username, role: user.role });
     } catch (e) {
       console.error("Login error:", e);
       return res.status(500).json({ error: "Server error" });
     }
   });
 
+  app.post("/api/auth/logout", (req: Request, res: Response) => {
+    req.session.destroy((err) => {
+      if (err) {
+        return res.status(500).json({ error: "Logout failed" });
+      }
+      res.clearCookie("connect.sid");
+      return res.json({ success: true });
+    });
+  });
+
+  // All routes below require an active session.
+  app.use("/api", requireAuth);
+
+  // ── Users ─────────────────────────────────────────────────────────────────
+
   app.get("/api/users", async (_req: Request, res: Response) => {
     try {
       const allUsers = await storage.getAllUsers();
-      const safe = allUsers.map(u => ({
-        username: u.username,
-        role: u.role,
-      }));
+      const safe = allUsers.map(u => ({ username: u.username, role: u.role }));
       return res.json(safe);
     } catch (e) {
       console.error("Get users error:", e);
@@ -57,10 +99,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         role: role || "member",
       });
 
-      return res.json({
-        username: user.username,
-        role: user.role,
-      });
+      return res.json({ username: user.username, role: user.role });
     } catch (e) {
       console.error("Create user error:", e);
       return res.status(500).json({ error: "Server error" });
@@ -70,11 +109,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete("/api/users/:username", async (req: Request, res: Response) => {
     try {
       const username = req.params.username as string;
-      const lowerUsername = username.toLowerCase();
-      if (lowerUsername === "admin" || lowerUsername === "darryl") {
+      if (username.toLowerCase() === "admin" || username.toLowerCase() === "darryl") {
         return res.status(403).json({ error: "Cannot delete default admin accounts" });
       }
-
       await storage.deleteUser(username);
       return res.json({ success: true });
     } catch (e) {
@@ -83,35 +120,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // --- Projects ---
+  // ── Projects ──────────────────────────────────────────────────────────────
 
+  // Fix #3: read role and username from the session, not from query params,
+  // to eliminate the role-bypass vulnerability.
   app.get("/api/projects", async (req: Request, res: Response) => {
     try {
-      const username = req.query.username as string | undefined;
-      const role = req.query.role as string | undefined;
+      const { username, role } = req.session.user!;
       const allProjects = await storage.getAllProjects();
 
       if (role === "admin") {
         return res.json(allProjects);
       }
 
-      if (username) {
-        const filtered = allProjects.filter(p =>
-          (p.assignedMembers as string[])?.includes(username)
-        );
-        return res.json(filtered);
-      }
-
-      return res.json(allProjects);
+      const filtered = allProjects.filter(p =>
+        (p.assignedMembers as string[])?.includes(username),
+      );
+      return res.json(filtered);
     } catch (e) {
       console.error("Get projects error:", e);
       return res.status(500).json({ error: "Server error" });
     }
   });
 
+  // Fix #8: validate the request body before passing it to storage.
   app.post("/api/projects", async (req: Request, res: Response) => {
     try {
-      const project = await storage.createProject(req.body);
+      const parsed = insertProjectSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ error: parsed.error.flatten() });
+      }
+      const project = await storage.createProject(parsed.data);
       return res.json(project);
     } catch (e) {
       console.error("Create project error:", e);
@@ -142,17 +181,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // --- Task States ---
+  // ── Task States ───────────────────────────────────────────────────────────
 
   app.get("/api/task-states", async (req: Request, res: Response) => {
     try {
       const projectId = req.query.projectId as string | undefined;
       if (projectId) {
-        const states = await storage.getTaskStatesByProjectId(projectId);
-        return res.json(states);
+        return res.json(await storage.getTaskStatesByProjectId(projectId));
       }
-      const all = await storage.getAllTaskStates();
-      return res.json(all);
+      return res.json(await storage.getAllTaskStates());
     } catch (e) {
       console.error("Get task states error:", e);
       return res.status(500).json({ error: "Server error" });
@@ -165,7 +202,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!Array.isArray(states)) {
         return res.status(400).json({ error: "states array required" });
       }
-      const created = await storage.bulkCreateTaskStates(states);
+      // Fix #8: validate each state object.
+      const validated: any[] = [];
+      for (const state of states) {
+        const parsed = insertTaskStateSchema.safeParse(state);
+        if (!parsed.success) {
+          return res.status(400).json({ error: parsed.error.flatten() });
+        }
+        validated.push(parsed.data);
+      }
+      const created = await storage.bulkCreateTaskStates(validated);
       return res.json(created);
     } catch (e) {
       console.error("Bulk create task states error:", e);
@@ -178,7 +224,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const updated = await storage.updateTaskState(
         req.params.projectId as string,
         req.params.uid as string,
-        req.body
+        req.body,
       );
       if (!updated) {
         return res.status(404).json({ error: "Task state not found" });
@@ -190,26 +236,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // --- Reports ---
+  // ── Reports ───────────────────────────────────────────────────────────────
 
   app.get("/api/reports", async (req: Request, res: Response) => {
     try {
       const projectId = req.query.projectId as string | undefined;
       if (projectId) {
-        const rpts = await storage.getReportsByProjectId(projectId);
-        return res.json(rpts);
+        return res.json(await storage.getReportsByProjectId(projectId));
       }
-      const all = await storage.getAllReports();
-      return res.json(all);
+      return res.json(await storage.getAllReports());
     } catch (e) {
       console.error("Get reports error:", e);
       return res.status(500).json({ error: "Server error" });
     }
   });
 
+  // Fix #8: validate the report body.
   app.post("/api/reports", async (req: Request, res: Response) => {
     try {
-      const report = await storage.createReport(req.body);
+      const parsed = insertReportSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ error: parsed.error.flatten() });
+      }
+      const report = await storage.createReport(parsed.data);
       return res.json(report);
     } catch (e) {
       console.error("Create report error:", e);
@@ -230,21 +279,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // --- Messages ---
+  // ── Messages ──────────────────────────────────────────────────────────────
 
   app.get("/api/messages", async (_req: Request, res: Response) => {
     try {
-      const all = await storage.getAllMessages();
-      return res.json(all);
+      return res.json(await storage.getAllMessages());
     } catch (e) {
       console.error("Get messages error:", e);
       return res.status(500).json({ error: "Server error" });
     }
   });
 
+  // Fix #8: validate the message body.
   app.post("/api/messages", async (req: Request, res: Response) => {
     try {
-      const message = await storage.createMessage(req.body);
+      const parsed = insertMessageSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ error: parsed.error.flatten() });
+      }
+      const message = await storage.createMessage(parsed.data);
       return res.json(message);
     } catch (e) {
       console.error("Create message error:", e);

@@ -8,6 +8,7 @@
 
 import { describe, it, expect, beforeEach } from 'vitest';
 import { InMemoryStorage } from './in-memory-storage';
+import { verifyPassword } from '../../lib/auth';
 
 let storage: InMemoryStorage;
 
@@ -44,6 +45,18 @@ describe('createUser', () => {
     expect(user.id).toBeDefined();
     expect(user.username).toBe('bob');
     expect(user.role).toBe('admin');
+  });
+
+  it('stores the password as a hash, not plaintext (Fix #1)', async () => {
+    const user = await storage.createUser({ username: 'bob', password: 'secret', role: 'member' });
+    expect(user.password).not.toBe('secret');
+    expect(user.password).toContain(':'); // salt:hash format
+  });
+
+  it('stored hash verifies correctly with the original password', async () => {
+    const user = await storage.createUser({ username: 'bob', password: 'mypassword', role: 'member' });
+    expect(await verifyPassword('mypassword', user.password)).toBe(true);
+    expect(await verifyPassword('wrongpassword', user.password)).toBe(false);
   });
 
   it('throws when a duplicate username is created', async () => {

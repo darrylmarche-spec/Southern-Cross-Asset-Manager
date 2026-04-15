@@ -1,5 +1,9 @@
 import express from "express";
 import type { Request, Response, NextFunction } from "express";
+import session from "express-session";
+import connectPgSimple from "connect-pg-simple";
+import { rateLimit } from "express-rate-limit";
+import pg from "pg";
 import { registerRoutes } from "./routes";
 import { storage } from "./storage";
 import * as fs from "fs";
@@ -30,7 +34,6 @@ function setupCors(app: express.Application) {
 
     const origin = req.header("origin");
 
-    // Allow localhost origins for Expo web development (any port)
     const isLocalhost =
       origin?.startsWith("http://localhost:") ||
       origin?.startsWith("http://127.0.0.1:");
@@ -63,6 +66,43 @@ function setupBodyParsing(app: express.Application) {
   );
 
   app.use(express.urlencoded({ extended: false }));
+}
+
+// Fix #2: session-based authentication.
+// Fix #11: rate limiting on the login endpoint.
+function setupAuth(app: express.Application) {
+  const PgSession = connectPgSimple(session);
+
+  // Separate pg.Pool for the session store (uses standard TCP, not Neon WS).
+  const pgPool = new pg.Pool({ connectionString: process.env.DATABASE_URL });
+
+  app.use(
+    session({
+      store: new PgSession({
+        pool: pgPool,
+        createTableIfMissing: true,
+      }),
+      secret: process.env.SESSION_SECRET ?? "dev-only-secret-change-in-production",
+      resave: false,
+      saveUninitialized: false,
+      cookie: {
+        httpOnly: true,
+        sameSite: "lax",
+        secure: process.env.NODE_ENV === "production",
+        maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+      },
+    }),
+  );
+
+  // Fix #11: 20 login attempts per 15-minute window per IP.
+  const loginLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 20,
+    message: { error: "Too many login attempts, please try again later" },
+    standardHeaders: true,
+    legacyHeaders: false,
+  });
+  app.use("/api/auth/login", loginLimiter);
 }
 
 function setupRequestLogging(app: express.Application) {
@@ -169,7 +209,6 @@ function configureExpoAndLanding(app: express.Application) {
       return next();
     }
 
-    // Serve manifest for mobile platforms ONLY when expo-platform header is present
     const platform = req.header("expo-platform");
     if (platform && (platform === "ios" || platform === "android")) {
       if (req.path === "/" || req.path === "/manifest") {
@@ -221,6 +260,7 @@ function setupErrorHandler(app: express.Application) {
 (async () => {
   setupCors(app);
   setupBodyParsing(app);
+  setupAuth(app);       // session + rate limiting
   setupRequestLogging(app);
 
   configureExpoAndLanding(app);
