@@ -111,7 +111,7 @@ export default function DashboardScreen() {
         id: `m-${m.id}`,
         type: 'message',
         title: m.type === 'parts_request' ? 'Parts Request' : 'New Message',
-        subtitle: `From ${m.sender}`,
+        subtitle: `From ${m.senderUsername}`,
         time: new Date(m.sentAt)
       });
     });
@@ -186,10 +186,10 @@ export default function DashboardScreen() {
                   </View>
                   <View style={styles.messageButtonTextWrap}>
                     <View style={styles.msgHeader}>
-                      <Text style={styles.messageButtonTitle}>{msg.sender}</Text>
+                      <Text style={styles.messageButtonTitle}>{msg.senderUsername}</Text>
                       {!msg.read && <View style={styles.unreadDot} />}
                     </View>
-                    <Text style={styles.messageButtonSub} numberOfLines={1}>{msg.content}</Text>
+                    <Text style={styles.messageButtonSub} numberOfLines={1}>{msg.body || msg.subject}</Text>
                   </View>
                   <Ionicons name="chevron-forward" size={16} color={Colors.textTertiary} />
                 </Pressable>

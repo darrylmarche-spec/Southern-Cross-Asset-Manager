@@ -150,7 +150,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!parsed.success) {
         return res.status(400).json({ error: parsed.error.flatten() });
       }
-      const project = await storage.createProject(parsed.data);
+      const project = await storage.createProject({
+        escalatorType: 'Escalator',
+        dateOfCompletion: '',
+        assignedMembers: [],
+        ...parsed.data,
+      });
       return res.json(project);
     } catch (e) {
       console.error("Create project error:", e);
@@ -258,7 +263,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!parsed.success) {
         return res.status(400).json({ error: parsed.error.flatten() });
       }
-      const report = await storage.createReport(parsed.data);
+      const report = await storage.createReport({
+        status: 'pending',
+        type: 'generate',
+        content: '',
+        notes: '',
+        subject: '',
+        ...parsed.data,
+      });
       return res.json(report);
     } catch (e) {
       console.error("Create report error:", e);
@@ -297,7 +309,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!parsed.success) {
         return res.status(400).json({ error: parsed.error.flatten() });
       }
-      const message = await storage.createMessage(parsed.data);
+      const message = await storage.createMessage({
+        type: 'message',
+        read: false,
+        body: '',
+        attachments: [],
+        ...parsed.data,
+      });
       return res.json(message);
     } catch (e) {
       console.error("Create message error:", e);

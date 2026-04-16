@@ -227,7 +227,7 @@ export const ALL_TASKS: TaskDefinition[] = [
   { uid: '7.29', name: 'Unit fully operational', description: 'Is the unit fully operational?', section: 'Finishing Work', sectionIndex: 7, subsection: 'Finishing Work - Overall', type: 'commissioning', saisRef: 'SAIS J46200195, 10.3.16-10.3.18' },
 ];
 
-export const DEFAULT_USERS: UserAccount[] = [
+export const DEFAULT_USERS = [
   { username: 'Admin', password: 'adminpassword', role: 'admin' },
   { username: 'Darryl', password: 'schindler1', role: 'admin' },
 ];

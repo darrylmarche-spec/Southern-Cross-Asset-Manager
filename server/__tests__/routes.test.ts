@@ -81,7 +81,7 @@ async function loginAs(
     .post('/api/auth/login')
     .send({ username, password });
   // Supertest returns Set-Cookie as a string array; join for use with .set()
-  return (res.headers['set-cookie'] as string[] | undefined)?.join('; ') ?? '';
+  return (res.headers['set-cookie'] as unknown as string[] | undefined)?.join('; ') ?? '';
 }
 
 const newProject = () => ({
