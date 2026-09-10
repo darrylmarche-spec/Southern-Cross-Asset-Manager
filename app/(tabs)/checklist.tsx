@@ -8,71 +8,59 @@ import Colors from '@/constants/colors';
 import { useApp } from '@/contexts/AppContext';
 import { ALL_TASKS, SECTIONS, type TaskDefinition } from '@/data/checklist-data';
 
-function TaskRow({ task, taskState, onPress }: { task: TaskDefinition; taskState: any; onPress: () => void }) {
-  const isOverhaul = task.type === 'overhaul';
+type FilterKey = 'all' | 'open' | 'mine' | 'closed';
+const FILTERS: { key: FilterKey; label: string }[] = [
+  { key: 'all', label: 'All' },
+  { key: 'open', label: 'Open' },
+  { key: 'mine', label: 'Assigned to Me' },
+  { key: 'closed', label: 'Closed' },
+];
+
+function displayNumber(task: TaskDefinition, indexInSection: number) {
+  return task.type === 'overhaul' ? String(indexInSection + 1) : task.uid;
+}
+
+function TaskRow({ task, label, taskState, onPress }: { task: TaskDefinition; label: string; taskState: any; onPress: () => void }) {
+  const isDone = taskState?.status === 'completed';
   const hasIssue = taskState?.response === 'V' || taskState?.response === 'O';
-  const isOverdue = taskState?.dueDate && taskState?.status !== 'completed' && new Date(taskState.dueDate) < new Date();
 
   return (
     <Pressable
       onPress={onPress}
-      style={({ pressed }) => [styles.taskRow, pressed && { backgroundColor: Colors.surfaceSecondary }]}
+      style={({ pressed }) => [
+        styles.taskRow,
+        hasIssue && styles.taskRowFlagged,
+        pressed && { backgroundColor: Colors.surfacePressed },
+      ]}
     >
-      <View style={[styles.uidBadge, hasIssue ? styles.uidBadgeIssue : isOverdue ? styles.uidBadgeOverdue : null]}>
-        <Text style={[styles.uidText, (hasIssue || isOverdue) && { color: '#FFF' }]}>{task.uid}</Text>
+      <View style={[styles.uidBadge, isDone ? styles.uidBadgeDone : styles.uidBadgeOpen]}>
+        <Text style={[styles.uidText, isDone && { color: '#FFF' }]}>{label}</Text>
       </View>
       <View style={styles.taskInfo}>
-        <Text style={styles.taskName} numberOfLines={2}>{task.name}</Text>
-        {isOverhaul && (
-          <Text style={styles.taskMeta}>
-            Est: {task.estDuration}h / {task.estLabor} labor
-            {taskState?.actDuration ? ` \u00B7 Act: ${taskState.actDuration}h` : ''}
-          </Text>
-        )}
-        {!isOverhaul && taskState?.response ? (
-          <View style={styles.responseRow}>
-            <View style={[styles.responseBadge, {
-              backgroundColor: taskState.response === 'yes' || taskState.response === 'check' ? Colors.successLight :
-                taskState.response === 'V' ? Colors.dangerLight :
-                taskState.response === 'O' ? Colors.warningLight :
-                Colors.surfaceSecondary
-            }]}>
-              <Text style={[styles.responseText, {
-                color: taskState.response === 'yes' || taskState.response === 'check' ? Colors.success :
-                  taskState.response === 'V' ? Colors.danger :
-                  taskState.response === 'O' ? '#B45309' :
-                  Colors.textSecondary
-              }]}>
-                {taskState.response === 'yes' ? 'Yes' : taskState.response === 'no' ? 'No' : taskState.response === 'check' ? 'Pass' : taskState.response === 'V' ? 'Fail (SAIS)' : taskState.response === 'O' ? 'Fail' : 'N/A'}
-              </Text>
-            </View>
-          </View>
-        ) : null}
-        {taskState?.assignedTo ? (
-          <Text style={styles.assignedText}>{taskState.assignedTo}</Text>
-        ) : null}
+        <Text style={[styles.taskName, isDone && styles.taskNameDone]} numberOfLines={2}>{task.name}</Text>
+        {taskState?.assignedTo ? <Text style={styles.assignedText}>{taskState.assignedTo}</Text> : null}
       </View>
-      <Ionicons name="chevron-forward" size={18} color={Colors.textTertiary} />
+      {hasIssue ? (
+        <View style={styles.openPill}><Text style={styles.openPillText}>Open</Text></View>
+      ) : isDone ? (
+        <Text style={styles.donePill}>Done</Text>
+      ) : (
+        <Ionicons name="chevron-forward" size={18} color={Colors.textMuted} />
+      )}
     </Pressable>
   );
 }
 
 export default function ChecklistScreen() {
   const insets = useSafeAreaInsets();
-  const { currentProject, taskStates, getTaskState, focusSection, setFocusSection } = useApp();
-  const [overhaulOpen, setOverhaulOpen] = useState(false);
-  const [commissioningOpen, setCommissioningOpen] = useState(false);
-  const [openSubSections, setOpenSubSections] = useState<Set<number>>(new Set());
+  const { currentProject, taskStates, getTaskState, currentUser, focusSection, setFocusSection } = useApp();
+  const [filter, setFilter] = useState<FilterKey>('all');
+  const [openSections, setOpenSections] = useState<Set<number>>(new Set([0]));
   const scrollRef = useRef<ScrollView>(null);
 
   useEffect(() => {
     if (focusSection !== null) {
-      if (focusSection === 0) {
-        setOverhaulOpen(true);
-      } else {
-        setCommissioningOpen(true);
-        setOpenSubSections(prev => new Set([...prev, focusSection]));
-      }
+      setOpenSections(prev => new Set([...prev, focusSection]));
       setFocusSection(null);
     }
   }, [focusSection]);
@@ -82,41 +70,26 @@ export default function ChecklistScreen() {
     return taskStates.filter(t => t.projectId === currentProject.id);
   }, [currentProject, taskStates]);
 
-  const getStats = useCallback((sectionIndices: number[]) => {
-    let total = 0;
-    let completed = 0;
-    sectionIndices.forEach(idx => {
-      const tasks = ALL_TASKS.filter(t => t.sectionIndex === idx);
-      total += tasks.length;
-      completed += tasks.filter(t => {
-        const state = projectTasks.find(s => s.uid === t.uid);
-        return state?.status === 'completed';
-      }).length;
-    });
-    return { total, completed };
-  }, [projectTasks]);
+  const stateFor = useCallback((uid: string) => projectTasks.find(s => s.uid === uid), [projectTasks]);
 
-  const getPendingTasks = useCallback((sectionIndex: number): TaskDefinition[] => {
-    return ALL_TASKS.filter(t => {
-      if (t.sectionIndex !== sectionIndex) return false;
-      const state = projectTasks.find(s => s.uid === t.uid);
-      return !state || state.status !== 'completed';
-    });
-  }, [projectTasks]);
+  const matchesFilter = useCallback((task: TaskDefinition) => {
+    const state = stateFor(task.uid);
+    const isDone = state?.status === 'completed';
+    if (filter === 'open') return !isDone;
+    if (filter === 'closed') return isDone;
+    if (filter === 'mine') return !!state?.assignedTo && state.assignedTo === currentUser?.username;
+    return true;
+  }, [filter, stateFor, currentUser]);
 
-  const toggleSubSection = useCallback((index: number) => {
+  const toggleSection = useCallback((index: number) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setOpenSubSections(prev => {
+    setOpenSections(prev => {
       const next = new Set(prev);
       if (next.has(index)) next.delete(index);
       else next.add(index);
       return next;
     });
   }, []);
-
-  const commissioningSections = SECTIONS.filter(s => s.index >= 1 && s.index <= 7);
-  const overhaulStats = getStats([0]);
-  const commissioningStats = getStats(commissioningSections.map(s => s.index));
 
   if (!currentProject) {
     return (
@@ -131,8 +104,32 @@ export default function ChecklistScreen() {
   return (
     <View style={[styles.screen, { paddingTop: insets.top + (Platform.OS === 'web' ? 67 : 0) }]}>
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Active Tasks</Text>
-        <Text style={styles.headerSubtitle}>{currentProject.projectName}</Text>
+        <View style={styles.headerTextWrap}>
+          <Text style={styles.headerTitle}>Checklist</Text>
+          <Text style={styles.headerSubtitle} numberOfLines={1}>{currentProject.projectName}</Text>
+        </View>
+        <View style={styles.avatar}>
+          <Text style={styles.avatarText}>
+            {(currentUser?.username || 'SC').slice(0, 2).toUpperCase()}
+          </Text>
+        </View>
+      </View>
+
+      <View style={styles.filterBar}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+          {FILTERS.map(f => {
+            const on = filter === f.key;
+            return (
+              <Pressable
+                key={f.key}
+                onPress={() => { Haptics.selectionAsync(); setFilter(f.key); }}
+                style={[styles.chip, on && styles.chipOn]}
+              >
+                <Text style={[styles.chipText, on && styles.chipTextOn]}>{f.label}</Text>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
       </View>
 
       <ScrollView
@@ -140,148 +137,33 @@ export default function ChecklistScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: insets.bottom + 100 }}
       >
-        {/* Overhaul Workflow */}
-        <Pressable
-          onPress={() => {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-            setOverhaulOpen(v => !v);
-          }}
-          style={[
-            styles.topHeader,
-            overhaulStats.completed === overhaulStats.total && overhaulStats.total > 0 && styles.topHeaderDone,
-          ]}
-        >
-          <Ionicons
-            name={overhaulOpen ? 'chevron-down' : 'chevron-forward'}
-            size={18}
-            color={overhaulStats.completed === overhaulStats.total && overhaulStats.total > 0 ? Colors.success : Colors.textSecondary}
-          />
-          <Text style={[
-            styles.topHeaderTitle,
-            overhaulStats.completed === overhaulStats.total && overhaulStats.total > 0 && { color: Colors.success },
-          ]}>
-            Overhaul Workflow
-          </Text>
-          <View style={[
-            styles.countBadge,
-            overhaulStats.completed === overhaulStats.total && overhaulStats.total > 0 && { backgroundColor: Colors.successLight },
-          ]}>
-            <Text style={[
-              styles.countText,
-              overhaulStats.completed === overhaulStats.total && overhaulStats.total > 0 && { color: Colors.success },
-            ]}>
-              {overhaulStats.completed}/{overhaulStats.total}
-            </Text>
-          </View>
-        </Pressable>
+        {SECTIONS.map(section => {
+          const inSection = ALL_TASKS.filter(t => t.sectionIndex === section.index);
+          const rows = inSection.filter(matchesFilter);
+          if (rows.length === 0) return null;
+          const doneCount = inSection.filter(t => stateFor(t.uid)?.status === 'completed').length;
+          const isOpen = openSections.has(section.index);
 
-        {overhaulOpen && (
-          <View>
-            {getPendingTasks(0).length === 0 ? (
-              <View style={styles.allDoneRow}>
-                <Ionicons name="checkmark-circle" size={16} color={Colors.success} />
-                <Text style={styles.allDoneText}>All tasks complete</Text>
-              </View>
-            ) : (
-              getPendingTasks(0).map(task => (
+          return (
+            <View key={section.index}>
+              <Pressable onPress={() => toggleSection(section.index)} style={styles.sectionBar}>
+                <Ionicons name={isOpen ? 'chevron-down' : 'chevron-forward'} size={16} color={Colors.text} />
+                <Text style={styles.sectionTitle}>{section.index}. {section.name}</Text>
+                <Text style={styles.sectionCount}>{doneCount}/{inSection.length}</Text>
+              </Pressable>
+
+              {isOpen && rows.map(task => (
                 <TaskRow
                   key={task.uid}
                   task={task}
+                  label={displayNumber(task, inSection.indexOf(task))}
                   taskState={getTaskState(task.uid)}
                   onPress={() => {
                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                     router.push({ pathname: '/task/[id]', params: { id: task.uid } });
                   }}
                 />
-              ))
-            )}
-          </View>
-        )}
-
-        {/* Commissioning */}
-        <Pressable
-          onPress={() => {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-            setCommissioningOpen(v => !v);
-          }}
-          style={[
-            styles.topHeader,
-            { marginTop: 6 },
-            commissioningStats.completed === commissioningStats.total && commissioningStats.total > 0 && styles.topHeaderDone,
-          ]}
-        >
-          <Ionicons
-            name={commissioningOpen ? 'chevron-down' : 'chevron-forward'}
-            size={18}
-            color={commissioningStats.completed === commissioningStats.total && commissioningStats.total > 0 ? Colors.success : Colors.textSecondary}
-          />
-          <Text style={[
-            styles.topHeaderTitle,
-            commissioningStats.completed === commissioningStats.total && commissioningStats.total > 0 && { color: Colors.success },
-          ]}>
-            Commissioning
-          </Text>
-          <View style={[
-            styles.countBadge,
-            commissioningStats.completed === commissioningStats.total && commissioningStats.total > 0 && { backgroundColor: Colors.successLight },
-          ]}>
-            <Text style={[
-              styles.countText,
-              commissioningStats.completed === commissioningStats.total && commissioningStats.total > 0 && { color: Colors.success },
-            ]}>
-              {commissioningStats.completed}/{commissioningStats.total}
-            </Text>
-          </View>
-        </Pressable>
-
-        {commissioningOpen && commissioningSections.map(section => {
-          const stats = getStats([section.index]);
-          const allDone = stats.completed === stats.total && stats.total > 0;
-          const isOpen = openSubSections.has(section.index);
-          const pendingTasks = getPendingTasks(section.index);
-          return (
-            <View key={section.index}>
-              <Pressable
-                onPress={() => toggleSubSection(section.index)}
-                style={[styles.subHeader, allDone && styles.subHeaderDone]}
-              >
-                <Ionicons
-                  name={isOpen ? 'chevron-down' : 'chevron-forward'}
-                  size={15}
-                  color={allDone ? Colors.success : Colors.textSecondary}
-                />
-                <Text style={[styles.subHeaderTitle, allDone && { color: Colors.success }]}>
-                  {section.index}. {section.name}
-                </Text>
-                <View style={[styles.countBadge, allDone && { backgroundColor: Colors.successLight }]}>
-                  <Text style={[styles.countText, allDone && { color: Colors.success }]}>
-                    {stats.completed}/{stats.total}
-                  </Text>
-                </View>
-              </Pressable>
-
-              {isOpen && (
-                <View>
-                  {pendingTasks.length === 0 ? (
-                    <View style={styles.allDoneRow}>
-                      <Ionicons name="checkmark-circle" size={16} color={Colors.success} />
-                      <Text style={styles.allDoneText}>All tasks complete</Text>
-                    </View>
-                  ) : (
-                    pendingTasks.map(task => (
-                      <TaskRow
-                        key={task.uid}
-                        task={task}
-                        taskState={getTaskState(task.uid)}
-                        onPress={() => {
-                          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                          router.push({ pathname: '/task/[id]', params: { id: task.uid } });
-                        }}
-                      />
-                    ))
-                  )}
-                </View>
-              )}
+              ))}
             </View>
           );
         })}
@@ -295,48 +177,55 @@ const styles = StyleSheet.create({
   emptyContainer: { flex: 1, backgroundColor: Colors.background, justifyContent: 'center', alignItems: 'center', gap: 8, padding: 24 },
   emptyTitle: { fontSize: 20, fontFamily: 'Inter_700Bold', color: Colors.text },
   emptySubtitle: { fontSize: 14, fontFamily: 'Inter_400Regular', color: Colors.textSecondary, textAlign: 'center' },
-  header: { paddingHorizontal: 20, paddingTop: 12, paddingBottom: 8 },
-  headerTitle: { fontSize: 28, fontFamily: 'Inter_700Bold', color: Colors.text },
-  headerSubtitle: { fontSize: 14, fontFamily: 'Inter_400Regular', color: Colors.textSecondary, marginTop: 2 },
-  topHeader: {
-    flexDirection: 'row', alignItems: 'center', gap: 10,
-    paddingHorizontal: 20, paddingVertical: 16,
-    backgroundColor: Colors.surface,
-    borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: Colors.borderLight,
-    borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: Colors.borderLight,
+
+  header: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    backgroundColor: Colors.primary, paddingHorizontal: 16, height: 54,
   },
-  topHeaderDone: { backgroundColor: '#F0FFF4' },
-  topHeaderTitle: { flex: 1, fontSize: 17, fontFamily: 'Inter_700Bold', color: Colors.text },
-  subHeader: {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
-    paddingHorizontal: 28, paddingVertical: 12,
-    backgroundColor: Colors.background,
+  headerTextWrap: { flex: 1, minWidth: 0 },
+  headerTitle: { fontSize: 17, fontFamily: 'Inter_700Bold', color: '#FFF' },
+  headerSubtitle: { fontSize: 11.5, fontFamily: 'Inter_500Medium', color: 'rgba(255,255,255,0.85)', marginTop: 1 },
+  avatar: {
+    width: 34, height: 34, borderRadius: 17, backgroundColor: 'rgba(255,255,255,0.2)',
+    borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.55)', alignItems: 'center', justifyContent: 'center',
+  },
+  avatarText: { fontSize: 12.5, fontFamily: 'Inter_700Bold', color: '#FFF' },
+
+  filterBar: {
+    backgroundColor: Colors.surfaceSecondary, paddingHorizontal: 12, paddingVertical: 9,
+    borderBottomWidth: 1, borderBottomColor: Colors.border,
+  },
+  chip: {
+    paddingHorizontal: 13, paddingVertical: 6, borderRadius: 2,
+    borderWidth: 1, borderColor: Colors.borderStrong, backgroundColor: Colors.field,
+  },
+  chipOn: { backgroundColor: Colors.selected, borderColor: Colors.selected },
+  chipText: { fontSize: 12.5, fontFamily: 'Inter_700Bold', color: Colors.textSecondary },
+  chipTextOn: { color: '#FFF' },
+
+  sectionBar: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    backgroundColor: Colors.sectionBar, paddingHorizontal: 14, paddingVertical: 11,
+    borderTopWidth: 1, borderTopColor: '#ABABAB', borderBottomWidth: 1, borderBottomColor: '#ABABAB',
+  },
+  sectionTitle: { flex: 1, fontSize: 14.5, fontFamily: 'Inter_700Bold', color: Colors.text },
+  sectionCount: { fontSize: 12.5, fontFamily: 'Inter_700Bold', color: Colors.textSecondary },
+
+  taskRow: {
+    flexDirection: 'row', alignItems: 'flex-start', gap: 11,
+    backgroundColor: Colors.surface, paddingHorizontal: 14, paddingVertical: 12,
     borderBottomWidth: 1, borderBottomColor: Colors.borderLight,
   },
-  subHeaderDone: { backgroundColor: '#F0FFF4' },
-  subHeaderTitle: { flex: 1, fontSize: 14, fontFamily: 'Inter_600SemiBold', color: Colors.text },
-  countBadge: { backgroundColor: Colors.surfaceSecondary, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 3 },
-  countText: { fontSize: 12, fontFamily: 'Inter_600SemiBold', color: Colors.textSecondary },
-  allDoneRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 28, paddingVertical: 14, backgroundColor: Colors.surface, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: Colors.borderLight },
-  allDoneText: { fontSize: 13, fontFamily: 'Inter_400Regular', color: Colors.success },
-  taskRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    paddingHorizontal: 20, paddingVertical: 14,
-    backgroundColor: Colors.surface,
-    borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: Colors.borderLight,
-  },
-  uidBadge: {
-    backgroundColor: Colors.surfaceSecondary, borderRadius: 8,
-    paddingHorizontal: 10, paddingVertical: 6, minWidth: 44, alignItems: 'center',
-  },
-  uidBadgeIssue: { backgroundColor: Colors.danger },
-  uidBadgeOverdue: { backgroundColor: Colors.accent },
+  taskRowFlagged: { borderLeftWidth: 4, borderLeftColor: Colors.warning },
+  uidBadge: { minWidth: 46, alignItems: 'center', borderRadius: 2, borderWidth: 1, paddingHorizontal: 6, paddingVertical: 4 },
+  uidBadgeDone: { backgroundColor: Colors.success, borderColor: Colors.success },
+  uidBadgeOpen: { backgroundColor: Colors.dangerBadge, borderColor: Colors.dangerBadgeBorder },
   uidText: { fontSize: 12, fontFamily: 'Inter_700Bold', color: Colors.text },
   taskInfo: { flex: 1, gap: 3 },
-  taskName: { fontSize: 14, fontFamily: 'Inter_500Medium', color: Colors.text, lineHeight: 19 },
-  taskMeta: { fontSize: 12, fontFamily: 'Inter_400Regular', color: Colors.textSecondary },
-  responseRow: { flexDirection: 'row' },
-  responseBadge: { borderRadius: 6, paddingHorizontal: 8, paddingVertical: 2 },
-  responseText: { fontSize: 11, fontFamily: 'Inter_600SemiBold' },
-  assignedText: { fontSize: 11, fontFamily: 'Inter_400Regular', color: Colors.primary },
+  taskName: { fontSize: 14, fontFamily: 'Inter_600SemiBold', color: Colors.text, lineHeight: 19 },
+  taskNameDone: { color: '#5C5C5C' },
+  assignedText: { fontSize: 12, fontFamily: 'Inter_600SemiBold', color: Colors.textSecondary },
+  openPill: { backgroundColor: Colors.warning, borderRadius: 2, paddingHorizontal: 8, paddingVertical: 3, marginTop: 2 },
+  openPillText: { fontSize: 11, fontFamily: 'Inter_700Bold', color: '#FFF' },
+  donePill: { fontSize: 11, fontFamily: 'Inter_700Bold', color: Colors.successDark, marginTop: 4 },
 });
