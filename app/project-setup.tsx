@@ -27,14 +27,14 @@ export default function ProjectSetupScreen() {
   const [assignedMembers, setAssignedMembers] = useState<string[]>(editingProject?.assignedMembers || []);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  const members = useMemo(() => {
-    // Both 'member' role and Darryl (even if admin) should be assignable
-    return users.filter(u => u.role === 'member' || u.username.toLowerCase() === 'darryl');
-  }, [users]);
+  const members = useMemo(
+    () => users.filter(u => u.role === 'member' || u.username.toLowerCase() === 'darryl'),
+    [users]
+  );
 
   const toggleMember = (username: string) => {
     Haptics.selectionAsync();
-    setAssignedMembers(prev => 
+    setAssignedMembers(prev =>
       prev.includes(username) ? prev.filter(u => u !== username) : [...prev, username]
     );
   };
@@ -62,7 +62,7 @@ export default function ProjectSetupScreen() {
       commissionNumber: commissionNumber.trim(),
       escalatorType: escalatorType.trim() || 'Escalator',
       dateOfCompletion: '',
-      assignedMembers: assignedMembers,
+      assignedMembers,
     };
     if (isEditing && editingProject) {
       updateProject(editingProject.id, projectData);
@@ -73,10 +73,10 @@ export default function ProjectSetupScreen() {
   };
 
   const renderField = (label: string, value: string, setter: (v: string) => void, key: string, placeholder: string) => (
-    <View style={styles.fieldGroup}>
+    <View style={styles.fieldGroup} key={key}>
       <Text style={styles.fieldLabel}>{label}</Text>
       <TextInput
-        style={[styles.fieldInput, errors[key] && styles.fieldInputError]}
+        style={[styles.fieldInput, !!errors[key] && styles.fieldInputError]}
         value={value}
         onChangeText={(v) => { setter(v); setErrors(prev => ({ ...prev, [key]: '' })); }}
         placeholder={placeholder}
@@ -88,63 +88,69 @@ export default function ProjectSetupScreen() {
   );
 
   return (
-    <View style={[styles.screen, { paddingTop: Platform.OS === 'web' ? insets.top + 67 : insets.top }]}>
+    <View style={[styles.screen, { paddingTop: insets.top + (Platform.OS === 'web' ? 67 : 0) }]}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
         <View style={styles.navBar}>
           <Pressable onPress={() => router.back()} hitSlop={12}>
-            <Ionicons name="close" size={28} color={Colors.text} />
+            <Ionicons name="close" size={26} color="#FFF" />
           </Pressable>
           <Text style={styles.navTitle}>{isEditing ? 'Edit Project' : 'New Project'}</Text>
-          <View style={{ width: 28 }} />
+          <View style={{ width: 26 }} />
         </View>
 
         <ScrollView
           showsVerticalScrollIndicator={false}
-          contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + (Platform.OS === 'web' ? 34 : 20) }]}
+          contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + (Platform.OS === 'web' ? 34 : 24) }]}
         >
-          {renderField('Customer *', customer, setCustomer, 'customer', 'e.g. Westfield Corporation')}
-          {renderField('Project Name *', projectName, setProjectName, 'projectName', 'e.g. Escalator Large Overhaul Unit 2')}
-          {renderField('Location *', location, setLocation, 'location', 'e.g. Sydney CBD, Level 3')}
-          {renderField('Commission Number *', commissionNumber, setCommissionNumber, 'commissionNumber', 'e.g. COM-2026-001')}
-          {renderField('Type of Escalator / Moving Walk', escalatorType, setEscalatorType, 'escalatorType', 'e.g. 9300AE Escalator')}
+          <View style={styles.sectionBar}>
+            <Text style={styles.sectionBarText}>Project details</Text>
+          </View>
+
+          <View style={styles.fields}>
+            {renderField('Customer *', customer, setCustomer, 'customer', 'e.g. Westfield Corporation')}
+            {renderField('Project Name *', projectName, setProjectName, 'projectName', 'e.g. Escalator Large Overhaul Unit 2')}
+            {renderField('Location *', location, setLocation, 'location', 'e.g. Sydney CBD, Level 3')}
+            {renderField('Commission Number *', commissionNumber, setCommissionNumber, 'commissionNumber', 'e.g. COM-2026-001')}
+            {renderField('Type of Escalator / Moving Walk', escalatorType, setEscalatorType, 'escalatorType', 'e.g. 9300AE Escalator')}
+          </View>
 
           {members.length > 0 && (
-            <View style={styles.fieldGroup}>
-              <Text style={styles.fieldLabel}>Assign Team Members</Text>
-              <View style={styles.memberList}>
-                {members.map(member => (
-                  <Pressable
-                    key={member.username}
-                    onPress={() => toggleMember(member.username)}
-                    style={[
-                      styles.memberChip,
-                      assignedMembers.includes(member.username) && styles.memberChipSelected
-                    ]}
-                  >
-                    <Ionicons 
-                      name={assignedMembers.includes(member.username) ? "checkmark-circle" : "add-circle-outline"} 
-                      size={18} 
-                      color={assignedMembers.includes(member.username) ? "#FFF" : Colors.textSecondary} 
-                    />
-                    <Text style={[
-                      styles.memberChipText,
-                      assignedMembers.includes(member.username) && styles.memberChipTextSelected
-                    ]}>
-                      {member.username}
-                    </Text>
-                  </Pressable>
-                ))}
+            <>
+              <View style={styles.sectionBar}>
+                <Text style={styles.sectionBarText}>Assign team members</Text>
               </View>
-            </View>
+              <View style={styles.memberList}>
+                {members.map(member => {
+                  const on = assignedMembers.includes(member.username);
+                  return (
+                    <Pressable
+                      key={member.username}
+                      onPress={() => toggleMember(member.username)}
+                      style={[styles.memberChip, on && styles.memberChipSelected]}
+                    >
+                      <Ionicons
+                        name={on ? 'checkmark-circle' : 'add-circle-outline'}
+                        size={17}
+                        color={on ? '#FFF' : Colors.textSecondary}
+                      />
+                      <Text style={[styles.memberChipText, on && styles.memberChipTextSelected]}>
+                        {member.username}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </>
           )}
 
-          <Pressable
-            onPress={handleSubmit}
-            style={({ pressed }) => [styles.createButton, pressed && { opacity: 0.85, transform: [{ scale: 0.98 }] }]}
-          >
-            <Ionicons name="checkmark" size={22} color="#FFF" />
-            <Text style={styles.createButtonText}>{isEditing ? 'Save Changes' : 'Create Project'}</Text>
-          </Pressable>
+          <View style={styles.footer}>
+            <Pressable
+              onPress={handleSubmit}
+              style={({ pressed }) => [styles.createButton, pressed && { backgroundColor: Colors.primaryDark }]}
+            >
+              <Text style={styles.createButtonText}>{isEditing ? 'SAVE CHANGES' : 'CREATE PROJECT'}</Text>
+            </Pressable>
+          </View>
         </ScrollView>
       </KeyboardAvoidingView>
     </View>
@@ -153,19 +159,50 @@ export default function ProjectSetupScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: Colors.background },
-  navBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: Colors.borderLight, backgroundColor: Colors.surface },
-  navTitle: { fontSize: 17, fontFamily: 'Inter_600SemiBold', color: Colors.text },
-  content: { padding: 20, gap: 16 },
-  fieldGroup: { gap: 6 },
-  fieldLabel: { fontSize: 13, fontFamily: 'Inter_600SemiBold', color: Colors.textSecondary, textTransform: 'uppercase' as const, letterSpacing: 0.5 },
-  fieldInput: { backgroundColor: Colors.surface, borderRadius: 12, paddingHorizontal: 16, height: 48, fontSize: 15, fontFamily: 'Inter_400Regular', color: Colors.text, borderWidth: 1, borderColor: Colors.borderLight },
-  fieldInputError: { borderColor: Colors.danger },
-  fieldError: { fontSize: 12, fontFamily: 'Inter_500Medium', color: Colors.danger },
-  createButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: Colors.primary, borderRadius: 14, height: 52, marginTop: 8 },
-  createButtonText: { fontSize: 17, fontFamily: 'Inter_600SemiBold', color: '#FFF' },
-  memberList: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 },
-  memberChip: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: Colors.surface, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20, borderWidth: 1, borderColor: Colors.borderLight },
-  memberChipSelected: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-  memberChipText: { fontSize: 14, fontFamily: 'Inter_500Medium', color: Colors.textSecondary },
+  navBar: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: 16, height: 54, backgroundColor: Colors.primary,
+  },
+  navTitle: { fontSize: 17, fontFamily: 'Inter_700Bold', color: '#FFF' },
+  content: { paddingBottom: 24 },
+
+  sectionBar: {
+    backgroundColor: Colors.sectionBar, paddingHorizontal: 14, paddingVertical: 8,
+    borderTopWidth: 1, borderBottomWidth: 1, borderColor: Colors.border,
+  },
+  sectionBarText: {
+    fontSize: 11.5, fontFamily: 'Inter_700Bold', color: Colors.textSecondary,
+    textTransform: 'uppercase' as const, letterSpacing: 0.8,
+  },
+
+  fields: { paddingHorizontal: 14, paddingTop: 14, gap: 14 },
+  fieldGroup: { gap: 5 },
+  fieldLabel: {
+    fontSize: 11.5, fontFamily: 'Inter_700Bold', color: Colors.textSecondary,
+    textTransform: 'uppercase' as const, letterSpacing: 0.6,
+  },
+  fieldInput: {
+    backgroundColor: Colors.field, borderRadius: 2, paddingHorizontal: 12, height: 46,
+    fontSize: 15, fontFamily: 'Inter_600SemiBold', color: Colors.text,
+    borderWidth: 1, borderColor: Colors.borderStrong,
+  },
+  fieldInputError: { borderColor: Colors.danger, borderWidth: 2 },
+  fieldError: { fontSize: 12, fontFamily: 'Inter_700Bold', color: Colors.danger },
+
+  memberList: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, padding: 14 },
+  memberChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: Colors.field,
+    paddingHorizontal: 12, paddingVertical: 9, borderRadius: 2,
+    borderWidth: 1, borderColor: Colors.borderStrong,
+  },
+  memberChipSelected: { backgroundColor: Colors.selected, borderColor: Colors.selected },
+  memberChipText: { fontSize: 13.5, fontFamily: 'Inter_700Bold', color: Colors.textSecondary },
   memberChipTextSelected: { color: '#FFF' },
+
+  footer: { padding: 14, paddingTop: 4 },
+  createButton: {
+    alignItems: 'center', justifyContent: 'center',
+    backgroundColor: Colors.primary, borderRadius: 3, height: 50,
+  },
+  createButtonText: { fontSize: 15, fontFamily: 'Inter_700Bold', color: '#FFF', letterSpacing: 0.6 },
 });

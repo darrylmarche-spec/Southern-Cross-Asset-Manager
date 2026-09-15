@@ -1,125 +1,64 @@
-import { isLiquidGlassAvailable } from "expo-glass-effect";
 import { Tabs, router } from "expo-router";
-import { NativeTabs, Icon, Label } from "expo-router/unstable-native-tabs";
-import { BlurView } from "expo-blur";
-import { Platform, StyleSheet, useColorScheme, View } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Platform, View, Text, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import React, { useEffect } from "react";
 import Colors from "@/constants/colors";
 import { useApp } from "@/contexts/AppContext";
 
-function NativeTabLayout() {
+// Charcoal tab bar with a red top indicator on the active tab — flat, no blur,
+// no liquid glass, so the chrome reads the same on every device in the field.
+export default function TabLayout() {
   const { currentUser } = useApp();
-  return (
-    <NativeTabs>
-      <NativeTabs.Trigger name="index">
-        <Icon sf={{ default: "chart.bar", selected: "chart.bar.fill" }} />
-        <Label>Dashboard</Label>
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="checklist">
-        <Icon sf={{ default: "checklist", selected: "checklist" }} />
-        <Label>Checklist</Label>
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="completed">
-        <Icon sf={{ default: "checkmark.circle", selected: "checkmark.circle.fill" }} />
-        <Label>Completed</Label>
-      </NativeTabs.Trigger>
-      {currentUser?.role === 'admin' && (
-        <NativeTabs.Trigger name="admin">
-          <Icon sf={{ default: "shield.lefthalf.filled", selected: "shield.fill" }} />
-          <Label>Admin</Label>
-        </NativeTabs.Trigger>
-      )}
-      <NativeTabs.Trigger name="settings">
-        <Icon sf={{ default: "gearshape", selected: "gearshape.fill" }} />
-        <Label>More</Label>
-      </NativeTabs.Trigger>
-    </NativeTabs>
-  );
-}
-
-function ClassicTabLayout() {
-  const { currentUser } = useApp();
-  const colorScheme = useColorScheme();
-  const isDark = colorScheme === "dark";
   const isWeb = Platform.OS === "web";
-  const isIOS = Platform.OS === "ios";
+
+  useEffect(() => {
+    if (currentUser === null) router.replace('/');
+  }, [currentUser]);
+
+  const icon = (name: keyof typeof Ionicons.glyphMap) =>
+    ({ color, focused }: { color: string; focused: boolean }) => (
+      <View style={[styles.iconWrap, focused && styles.iconWrapActive]}>
+        <Ionicons name={name} size={21} color={color} />
+      </View>
+    );
 
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: Colors.primary,
-        tabBarInactiveTintColor: Colors.textTertiary,
+        tabBarActiveTintColor: "#FFFFFF",
+        tabBarInactiveTintColor: "rgba(255,255,255,0.6)",
         tabBarStyle: {
-          position: "absolute" as const,
-          backgroundColor: isIOS ? "transparent" : isDark ? "#000" : "#fff",
-          borderTopWidth: isWeb ? 1 : 0,
-          borderTopColor: isDark ? "#333" : "#ccc",
+          backgroundColor: Colors.chrome,
+          borderTopWidth: 0,
           elevation: 0,
-          ...(isWeb ? { height: 84 } : {}),
+          height: isWeb ? 76 : undefined,
+          paddingTop: 4,
         },
-        tabBarBackground: () =>
-          isIOS ? (
-            <BlurView intensity={100} tint={isDark ? "dark" : "light"} style={StyleSheet.absoluteFill} />
-          ) : isWeb ? (
-            <View style={[StyleSheet.absoluteFill, { backgroundColor: isDark ? "#000" : "#fff" }]} />
-          ) : null,
-        tabBarLabelStyle: { fontFamily: 'Inter_500Medium', fontSize: 11 },
+        tabBarItemStyle: { paddingTop: 2 },
+        tabBarLabelStyle: { fontFamily: 'Inter_600SemiBold', fontSize: 10.5, letterSpacing: 0.2 },
       }}
     >
-      <Tabs.Screen
-        name="index"
-        options={{
-          title: "Dashboard",
-          tabBarIcon: ({ color, size }) => <Ionicons name="bar-chart" size={size} color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="checklist"
-        options={{
-          title: "Checklist",
-          tabBarIcon: ({ color, size }) => <Ionicons name="list" size={size} color={color} />,
-        }}
-      />
-      <Tabs.Screen
-        name="completed"
-        options={{
-          title: "Completed",
-          tabBarIcon: ({ color, size }) => <Ionicons name="checkmark-circle" size={size} color={color} />,
-        }}
-      />
+      <Tabs.Screen name="index" options={{ title: "Dashboard", tabBarIcon: icon("bar-chart") }} />
+      <Tabs.Screen name="checklist" options={{ title: "Checklist", tabBarIcon: icon("list") }} />
+      <Tabs.Screen name="completed" options={{ title: "Completed", tabBarIcon: icon("checkmark-circle") }} />
       <Tabs.Screen
         name="admin"
         options={{
           title: "Admin",
           href: currentUser?.role === 'admin' ? '/admin' : null,
-          tabBarIcon: ({ color, size }) => <Ionicons name="shield-checkmark" size={size} color={color} />,
+          tabBarIcon: icon("shield-checkmark"),
         }}
       />
-      <Tabs.Screen
-        name="settings"
-        options={{
-          title: "More",
-          tabBarIcon: ({ color, size }) => <Ionicons name="settings" size={size} color={color} />,
-        }}
-      />
+      <Tabs.Screen name="settings" options={{ title: "More", tabBarIcon: icon("ellipsis-horizontal") }} />
     </Tabs>
   );
 }
 
-export default function TabLayout() {
-  const { currentUser } = useApp();
-
-  useEffect(() => {
-    if (currentUser === null) {
-      router.replace('/');
-    }
-  }, [currentUser]);
-
-  if (isLiquidGlassAvailable()) {
-    return <NativeTabLayout />;
-  }
-  return <ClassicTabLayout />;
-}
+const styles = StyleSheet.create({
+  iconWrap: {
+    width: 44, alignItems: 'center', justifyContent: 'center',
+    borderTopWidth: 3, borderTopColor: 'transparent', paddingTop: 6,
+  },
+  iconWrapActive: { borderTopColor: Colors.primary },
+});

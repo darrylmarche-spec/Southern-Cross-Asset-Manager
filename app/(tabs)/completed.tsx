@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { View, Text, FlatList, Pressable, StyleSheet, Platform } from 'react-native';
+import { View, Text, FlatList, Pressable, StyleSheet, Platform, ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
@@ -34,7 +34,6 @@ export default function CompletedScreen() {
     setSubmitting(true);
 
     const completedStates = taskStates.filter(t => t.projectId === currentProject.id && t.status === 'completed');
-
     const totalEstDuration = ALL_TASKS.filter(t => t.type === 'overhaul').reduce((s, t) => s + (t.estDuration || 0), 0);
     const totalActDuration = completedStates.reduce((s, t) => {
       const def = ALL_TASKS.find(d => d.uid === t.uid);
@@ -48,9 +47,7 @@ export default function CompletedScreen() {
         if (!def) return '';
         const date = state.completedAt ? new Date(state.completedAt).toLocaleDateString('en-AU') : '-';
         return `<tr>
-          <td>${def.uid}</td>
-          <td>${def.name}</td>
-          <td>${def.section}</td>
+          <td>${def.uid}</td><td>${def.name}</td><td>${def.section}</td>
           <td>${def.type === 'overhaul' ? `${def.estDuration}h` : '-'}</td>
           <td>${state.actDuration ? `${state.actDuration}h` : '-'}</td>
           <td>${state.response || '-'}</td>
@@ -60,17 +57,18 @@ export default function CompletedScreen() {
         </tr>`;
       }).join('');
 
+    // Report styling follows the app: red rules, grey table heads, flat corners.
     const html = `<!DOCTYPE html><html><head><style>
-      body { font-family: Arial, sans-serif; padding: 20px; font-size: 11px; }
-      h1 { font-size: 18px; color: #0A84FF; }
-      h2 { font-size: 14px; margin-top: 20px; border-bottom: 2px solid #0A84FF; padding-bottom: 4px; }
+      body { font-family: Arial, sans-serif; padding: 20px; font-size: 11px; color: #111; }
+      h1 { font-size: 18px; color: #CC0000; margin-bottom: 2px; }
+      h2 { font-size: 14px; margin-top: 20px; border-bottom: 2px solid #CC0000; padding-bottom: 4px; }
       table { width: 100%; border-collapse: collapse; margin-top: 8px; }
-      th, td { border: 1px solid #ddd; padding: 5px 6px; text-align: left; }
-      th { background: #f0f0f0; font-weight: bold; }
+      th, td { border: 1px solid #B8B8B8; padding: 5px 6px; text-align: left; }
+      th { background: #D8D8D8; font-weight: bold; }
       .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 20px; margin: 10px 0; }
       .info-item { display: flex; gap: 4px; }
-      .info-label { font-weight: bold; color: #666; }
-      .summary { background: #f7f7f7; padding: 10px; border-radius: 4px; margin: 10px 0; }
+      .info-label { font-weight: bold; color: #5A5A5A; }
+      .summary { background: #D8D8D8; border-left: 3px solid #CC0000; padding: 10px; margin: 10px 0; }
       .sig-row { display: flex; gap: 40px; margin-top: 40px; }
       .sig-block { flex: 1; border-top: 1px solid #000; padding-top: 4px; }
     </style></head><body>
@@ -124,70 +122,38 @@ export default function CompletedScreen() {
   return (
     <View style={[styles.screen, { paddingTop: insets.top + (Platform.OS === 'web' ? 67 : 0) }]}>
       <View style={styles.header}>
-        <View style={styles.headerLeft}>
+        <View style={{ flex: 1, minWidth: 0 }}>
           <Text style={styles.headerTitle}>Completed</Text>
-          <Text style={styles.headerCount}>{completedTasks.length} tasks</Text>
+          <Text style={styles.headerSubtitle} numberOfLines={1}>{currentProject.projectName}</Text>
         </View>
       </View>
 
-      <View style={styles.centralButtons}>
-        <Pressable
-          onPress={() => router.push('/manual-report')}
-          style={({ pressed }) => [styles.largeReportButton, pressed && { opacity: 0.8, transform: [{ scale: 0.98 }] }]}
-        >
-          <Ionicons name="create" size={24} color="#FFF" />
-          <Text style={styles.largeReportButtonText}>Manual Report</Text>
-        </Pressable>
-
-        <View style={{ width: '100%', pointerEvents: submitting ? 'none' : 'auto' } as any}>
-          <Pressable
-            onPress={generatePdf}
-            style={({ pressed }) => [
-              styles.largeReportButton,
-              styles.secondaryLargeButton,
-              submitted && styles.successLargeButton,
-              submitting && { opacity: 0.6 },
-              !submitting && !submitted && pressed && { opacity: 0.8, transform: [{ scale: 0.98 }] },
-            ]}
-          >
-            {submitting ? (
-              <>
-                <Ionicons name="cloud-upload-outline" size={24} color={Colors.primary} />
-                <Text style={[styles.largeReportButtonText, { color: Colors.primary }]}>Submitting...</Text>
-              </>
-            ) : submitted ? (
-              <>
-                <Ionicons name="checkmark-circle" size={24} color={Colors.success} />
-                <Text style={[styles.largeReportButtonText, { color: Colors.success }]}>Report Saved</Text>
-              </>
-            ) : (
-              <>
-                <Ionicons name="document-text" size={24} color={Colors.primary} />
-                <Text style={[styles.largeReportButtonText, { color: Colors.primary }]}>Generate Report</Text>
-              </>
-            )}
-          </Pressable>
-        </View>
+      <View style={styles.countStrip}>
+        <Text style={styles.countLabel}>Signed off</Text>
+        <Text style={styles.countValue}>{completedTasks.length}</Text>
       </View>
 
-      <View style={styles.filterRow}>
-        <Pressable
-          onPress={() => { Haptics.selectionAsync(); setFilterSection(null); }}
-          style={[styles.filterChip, filterSection === null && styles.filterChipActive]}
-        >
-          <Text style={[styles.filterChipText, filterSection === null && styles.filterChipTextActive]}>All</Text>
-        </Pressable>
-        {SECTIONS.filter(s => s.index <= 7).map(s => (
+      <View style={styles.filterBar}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
           <Pressable
-            key={s.index}
-            onPress={() => { Haptics.selectionAsync(); setFilterSection(s.index); }}
-            style={[styles.filterChip, filterSection === s.index && styles.filterChipActive]}
+            onPress={() => { Haptics.selectionAsync(); setFilterSection(null); }}
+            style={[styles.chip, filterSection === null && styles.chipOn]}
           >
-            <Text style={[styles.filterChipText, filterSection === s.index && styles.filterChipTextActive]} numberOfLines={1}>
-              {s.index}. {s.name}
-            </Text>
+            <Text style={[styles.chipText, filterSection === null && styles.chipTextOn]}>All</Text>
           </Pressable>
-        ))}
+          {SECTIONS.filter(s => s.index <= 7).map(s => {
+            const on = filterSection === s.index;
+            return (
+              <Pressable
+                key={s.index}
+                onPress={() => { Haptics.selectionAsync(); setFilterSection(s.index); }}
+                style={[styles.chip, on && styles.chipOn]}
+              >
+                <Text style={[styles.chipText, on && styles.chipTextOn]} numberOfLines={1}>{s.index}. {s.name}</Text>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
       </View>
 
       <FlatList
@@ -202,22 +168,42 @@ export default function CompletedScreen() {
             <Text style={styles.emptyListText}>No completed tasks yet</Text>
           </View>
         }
+        ListFooterComponent={
+          <View style={styles.footerBtns}>
+            <Pressable
+              onPress={generatePdf}
+              disabled={submitting}
+              style={({ pressed }) => [styles.primaryBtn, submitted && { backgroundColor: Colors.success }, pressed && { opacity: 0.85 }]}
+            >
+              <Text style={styles.primaryBtnText}>
+                {submitting ? 'Submitting…' : submitted ? 'Report saved' : 'Generate PDF report'}
+              </Text>
+            </Pressable>
+            <Pressable
+              onPress={() => router.push('/manual-report')}
+              style={({ pressed }) => [styles.secondaryBtn, pressed && { backgroundColor: Colors.primaryLight }]}
+            >
+              <Text style={styles.secondaryBtnText}>Manual report</Text>
+            </Pressable>
+          </View>
+        }
         renderItem={({ item }) => (
           <Pressable
             onPress={() => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
               router.push({ pathname: '/task/[id]', params: { id: item.uid } });
             }}
-            style={({ pressed }) => [styles.completedRow, pressed && { opacity: 0.8 }]}
+            style={({ pressed }) => [styles.row, pressed && { backgroundColor: Colors.surfacePressed }]}
           >
-            <View style={styles.completedIcon}>
-              <Ionicons name="checkmark-circle" size={24} color={Colors.success} />
+            <View style={styles.tick}>
+              <Ionicons name="checkmark" size={13} color="#FFF" />
             </View>
-            <View style={styles.completedInfo}>
-              <Text style={styles.completedUid}>{item.uid}</Text>
-              <Text style={styles.completedName} numberOfLines={2}>{item.def.name}</Text>
-              <Text style={styles.completedMeta}>
-                {item.def.section} {item.completedBy ? `\u00B7 ${item.completedBy}` : ''} {item.completedAt ? `\u00B7 ${new Date(item.completedAt).toLocaleDateString()}` : ''}
+            <View style={{ flex: 1, gap: 3 }}>
+              <Text style={styles.rowName} numberOfLines={2}>{item.uid} {item.def.name}</Text>
+              <Text style={styles.rowMeta}>
+                {item.def.section}
+                {item.completedBy ? ` · ${item.completedBy}` : ''}
+                {item.completedAt ? ` · ${new Date(item.completedAt).toLocaleDateString()}` : ''}
               </Text>
             </View>
           </Pressable>
@@ -231,54 +217,54 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: Colors.background },
   emptyContainer: { flex: 1, backgroundColor: Colors.background, justifyContent: 'center', alignItems: 'center', gap: 8 },
   emptyTitle: { fontSize: 20, fontFamily: 'Inter_700Bold', color: Colors.text },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingTop: 12, paddingBottom: 8 },
-  headerLeft: {},
-  headerTitle: { fontSize: 28, fontFamily: 'Inter_700Bold', color: Colors.text },
-  headerCount: { fontSize: 14, fontFamily: 'Inter_400Regular', color: Colors.textSecondary },
-  centralButtons: { paddingHorizontal: 20, paddingVertical: 16, gap: 12, alignItems: 'center' },
-  largeReportButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 12,
-    backgroundColor: Colors.primary,
-    borderRadius: 16,
-    width: '100%',
-    height: 56,
-    shadowColor: Colors.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 4,
+
+  header: {
+    flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.primary,
+    paddingHorizontal: 16, height: 54,
   },
-  secondaryLargeButton: {
-    backgroundColor: Colors.primaryLight,
-    borderWidth: 1.5,
-    borderColor: Colors.primary,
-    shadowColor: 'transparent',
+  headerTitle: { fontSize: 17, fontFamily: 'Inter_700Bold', color: '#FFF' },
+  headerSubtitle: { fontSize: 11.5, fontFamily: 'Inter_500Medium', color: 'rgba(255,255,255,0.85)', marginTop: 1 },
+
+  countStrip: { paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: Colors.border },
+  countLabel: {
+    fontSize: 11, fontFamily: 'Inter_700Bold', color: Colors.textTertiary,
+    textTransform: 'uppercase' as const, letterSpacing: 0.8,
   },
-  successLargeButton: {
-    backgroundColor: Colors.success + '15',
-    borderWidth: 1.5,
-    borderColor: Colors.success,
-    shadowColor: 'transparent',
+  countValue: { fontSize: 34, fontFamily: 'Inter_700Bold', color: Colors.text, marginTop: 4 },
+
+  filterBar: {
+    backgroundColor: Colors.surfaceSecondary, paddingHorizontal: 12, paddingVertical: 9,
+    borderBottomWidth: 1, borderBottomColor: Colors.border,
   },
-  largeReportButtonText: {
-    fontSize: 17,
-    fontFamily: 'Inter_700Bold',
-    color: '#FFF',
+  chip: {
+    paddingHorizontal: 13, paddingVertical: 6, borderRadius: 2, maxWidth: 190,
+    borderWidth: 1, borderColor: Colors.borderStrong, backgroundColor: Colors.field,
   },
-  filterRow: { flexDirection: 'row', paddingHorizontal: 16, paddingVertical: 8, gap: 6, flexWrap: 'wrap' as const },
-  filterChip: { backgroundColor: Colors.surface, borderRadius: 20, paddingHorizontal: 12, paddingVertical: 6, borderWidth: 1, borderColor: Colors.borderLight },
-  filterChipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-  filterChipText: { fontSize: 12, fontFamily: 'Inter_500Medium', color: Colors.textSecondary },
-  filterChipTextActive: { color: '#FFF' },
-  emptyList: { alignItems: 'center', paddingTop: 80, gap: 8 },
+  chipOn: { backgroundColor: Colors.selected, borderColor: Colors.selected },
+  chipText: { fontSize: 12.5, fontFamily: 'Inter_700Bold', color: Colors.textSecondary },
+  chipTextOn: { color: '#FFF' },
+
+  row: {
+    flexDirection: 'row', gap: 11, alignItems: 'flex-start',
+    paddingHorizontal: 14, paddingVertical: 12, backgroundColor: Colors.surface,
+    borderBottomWidth: 1, borderBottomColor: Colors.borderLight,
+  },
+  tick: {
+    width: 20, height: 20, borderRadius: 10, backgroundColor: Colors.success,
+    alignItems: 'center', justifyContent: 'center', marginTop: 1,
+  },
+  rowName: { fontSize: 14, fontFamily: 'Inter_600SemiBold', color: Colors.text, lineHeight: 19 },
+  rowMeta: { fontSize: 12, fontFamily: 'Inter_600SemiBold', color: Colors.textSecondary },
+
+  emptyList: { alignItems: 'center', paddingTop: 60, gap: 8 },
   emptyListText: { fontSize: 15, fontFamily: 'Inter_400Regular', color: Colors.textSecondary },
-  completedRow: { flexDirection: 'row', gap: 12, paddingHorizontal: 20, paddingVertical: 14, backgroundColor: Colors.surface, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: Colors.borderLight },
-  completedIcon: { marginTop: 2 },
-  completedInfo: { flex: 1, gap: 2 },
-  completedUid: { fontSize: 12, fontFamily: 'Inter_700Bold', color: Colors.primary },
-  completedName: { fontSize: 14, fontFamily: 'Inter_500Medium', color: Colors.text, lineHeight: 19 },
-  completedMeta: { fontSize: 11, fontFamily: 'Inter_400Regular', color: Colors.textSecondary },
+
+  footerBtns: { padding: 16, gap: 10 },
+  primaryBtn: { height: 48, borderRadius: 3, backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center' },
+  primaryBtnText: { fontSize: 15, fontFamily: 'Inter_700Bold', color: '#FFF', letterSpacing: 0.3 },
+  secondaryBtn: {
+    height: 48, borderRadius: 3, backgroundColor: Colors.field,
+    borderWidth: 1, borderColor: Colors.primary, alignItems: 'center', justifyContent: 'center',
+  },
+  secondaryBtnText: { fontSize: 15, fontFamily: 'Inter_700Bold', color: Colors.primary },
 });
