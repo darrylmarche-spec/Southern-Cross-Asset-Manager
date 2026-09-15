@@ -4,7 +4,6 @@ import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import Colors from '@/constants/colors';
 import { useApp } from '@/contexts/AppContext';
@@ -37,14 +36,8 @@ export default function LoginScreen() {
   if (currentUser) return null;
 
   const handleLogin = async () => {
-    if (!username.trim()) {
-      setError('Please enter your username');
-      return;
-    }
-    if (!password.trim()) {
-      setError('Please enter your password');
-      return;
-    }
+    if (!username.trim()) { setError('Please enter your username'); return; }
+    if (!password.trim()) { setError('Please enter your password'); return; }
     setLoggingIn(true);
     try {
       const success = await login(username.trim(), password);
@@ -63,29 +56,27 @@ export default function LoginScreen() {
   };
 
   return (
-    <LinearGradient colors={['#0D0D0D', '#1A1A1A', '#0D0D0D']} style={styles.gradient}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.flex}
-      >
-        <View style={[styles.container, { paddingTop: insets.top + (Platform.OS === 'web' ? 67 : 40), paddingBottom: insets.bottom + (Platform.OS === 'web' ? 34 : 20) }]}>
+    <View style={styles.screen}>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.flex}>
+        <View style={[styles.container, {
+          paddingTop: insets.top + (Platform.OS === 'web' ? 67 : 32),
+          paddingBottom: insets.bottom + (Platform.OS === 'web' ? 34 : 20),
+        }]}>
           <View style={styles.header}>
-            <Image
-              source={logoSource}
-              style={styles.logo}
-              contentFit="contain"
-            />
+            <Image source={logoSource} style={styles.logo} contentFit="contain" />
+            <View style={styles.rule} />
             <Text style={styles.subtitle}>Escalator Commissioning Checklist</Text>
           </View>
 
           <View style={styles.form}>
             <View style={styles.inputGroup}>
+              <Text style={styles.label}>Username</Text>
               <View style={styles.inputWrapper}>
-                <Ionicons name="person-outline" size={20} color="rgba(255,255,255,0.35)" style={styles.inputIcon} />
+                <Ionicons name="person-outline" size={19} color={Colors.textTertiary} style={styles.inputIcon} />
                 <TextInput
                   style={styles.input}
                   placeholder="Username"
-                  placeholderTextColor="rgba(255,255,255,0.3)"
+                  placeholderTextColor={Colors.textTertiary}
                   value={username}
                   onChangeText={(t) => { setUsername(t); setError(''); }}
                   autoCapitalize="none"
@@ -93,76 +84,89 @@ export default function LoginScreen() {
                   returnKeyType="next"
                 />
               </View>
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Password</Text>
               <View style={styles.inputWrapper}>
-                <Ionicons name="lock-closed-outline" size={20} color="rgba(255,255,255,0.35)" style={styles.inputIcon} />
+                <Ionicons name="lock-closed-outline" size={19} color={Colors.textTertiary} style={styles.inputIcon} />
                 <TextInput
                   style={styles.input}
                   placeholder="Password"
-                  placeholderTextColor="rgba(255,255,255,0.3)"
+                  placeholderTextColor={Colors.textTertiary}
                   value={password}
                   onChangeText={(t) => { setPassword(t); setError(''); }}
                   secureTextEntry={!showPassword}
                   returnKeyType="done"
                   onSubmitEditing={handleLogin}
                 />
-                <Pressable onPress={() => setShowPassword(!showPassword)} hitSlop={8}>
-                  <Ionicons name={showPassword ? 'eye-off-outline' : 'eye-outline'} size={20} color="rgba(255,255,255,0.35)" />
+                <Pressable onPress={() => setShowPassword(!showPassword)} hitSlop={10}>
+                  <Ionicons name={showPassword ? 'eye-off-outline' : 'eye-outline'} size={19} color={Colors.textTertiary} />
                 </Pressable>
               </View>
             </View>
 
             {!!error && (
               <View style={styles.errorRow}>
-                <Ionicons name="alert-circle" size={16} color={Colors.danger} />
+                <Ionicons name="alert-circle" size={16} color="#FF6B6B" />
                 <Text style={styles.errorText}>{error}</Text>
               </View>
             )}
 
             <Pressable
               onPress={handleLogin}
-              style={({ pressed }) => [styles.loginButton, pressed && styles.loginButtonPressed]}
+              disabled={loggingIn}
+              style={({ pressed }) => [styles.loginButton, (pressed || loggingIn) && { backgroundColor: Colors.primaryDark }]}
             >
-              <Text style={styles.loginButtonText}>Sign In</Text>
-              <Ionicons name="arrow-forward" size={20} color="#FFF" />
+              <Text style={styles.loginButtonText}>{loggingIn ? 'SIGNING IN…' : 'SIGN IN'}</Text>
             </Pressable>
 
             <Text style={styles.hint}>Default accounts: Darryl, TeamMember1-3</Text>
           </View>
         </View>
       </KeyboardAvoidingView>
-    </LinearGradient>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
-  gradient: { flex: 1 },
-  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#0D0D0D' },
-  container: { flex: 1, justifyContent: 'center', paddingHorizontal: 24 },
-  header: { alignItems: 'center', marginBottom: 40 },
-  logo: {
-    width: '100%',
-    height: 350,
-    marginBottom: 0,
+  screen: { flex: 1, backgroundColor: Colors.chrome },
+  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: Colors.chrome },
+  container: { flex: 1, justifyContent: 'center', paddingHorizontal: 22 },
+
+  header: { alignItems: 'center', marginBottom: 28 },
+  logo: { width: '100%', height: 300 },
+  rule: { height: 3, width: '100%', backgroundColor: Colors.primary, marginTop: 4 },
+  subtitle: {
+    fontSize: 12, fontFamily: 'Inter_700Bold', color: 'rgba(255,255,255,0.75)',
+    textAlign: 'center', marginTop: 12, textTransform: 'uppercase' as const, letterSpacing: 1,
   },
-  subtitle: { fontSize: 14, fontFamily: 'Inter_400Regular', color: 'rgba(255,255,255,0.45)', textAlign: 'center', marginTop: 10, marginBottom: 20 },
-  form: { gap: 16 },
-  inputGroup: { gap: 12 },
+
+  form: { gap: 14 },
+  inputGroup: { gap: 6 },
+  label: {
+    fontSize: 11, fontFamily: 'Inter_700Bold', color: 'rgba(255,255,255,0.7)',
+    textTransform: 'uppercase' as const, letterSpacing: 0.8,
+  },
   inputWrapper: {
     flexDirection: 'row', alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.07)',
-    borderRadius: 14, paddingHorizontal: 16, height: 52,
-    borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)',
+    backgroundColor: Colors.field, borderRadius: 2, paddingHorizontal: 12, height: 50,
+    borderWidth: 1, borderColor: Colors.borderStrong,
   },
-  inputIcon: { marginRight: 12 },
-  input: { flex: 1, fontSize: 16, fontFamily: 'Inter_400Regular', color: '#FFFFFF' },
-  errorRow: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 4 },
-  errorText: { fontSize: 13, fontFamily: 'Inter_500Medium', color: Colors.danger },
+  inputIcon: { marginRight: 10 },
+  input: { flex: 1, fontSize: 16, fontFamily: 'Inter_600SemiBold', color: Colors.text },
+
+  errorRow: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 2 },
+  errorText: { fontSize: 13, fontFamily: 'Inter_700Bold', color: '#FF6B6B' },
+
   loginButton: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    backgroundColor: '#CC0000', borderRadius: 14, height: 52, marginTop: 8,
+    alignItems: 'center', justifyContent: 'center',
+    backgroundColor: Colors.primary, borderRadius: 3, height: 52, marginTop: 6,
   },
-  loginButtonPressed: { opacity: 0.85, transform: [{ scale: 0.98 }] },
-  loginButtonText: { fontSize: 17, fontFamily: 'Inter_600SemiBold', color: '#FFFFFF' },
-  hint: { fontSize: 12, fontFamily: 'Inter_400Regular', color: 'rgba(255,255,255,0.25)', textAlign: 'center', marginTop: 8 },
+  loginButtonText: { fontSize: 15, fontFamily: 'Inter_700Bold', color: '#FFFFFF', letterSpacing: 1 },
+  hint: {
+    fontSize: 11.5, fontFamily: 'Inter_600SemiBold', color: 'rgba(255,255,255,0.5)',
+    textAlign: 'center', marginTop: 6,
+  },
 });

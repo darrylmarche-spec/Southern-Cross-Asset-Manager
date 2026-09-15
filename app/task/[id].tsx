@@ -11,21 +11,29 @@ import { useApp } from '@/contexts/AppContext';
 import { type Attachment, type CommentAttachment } from '@/contexts/AppContext';
 import { ALL_TASKS, type ResponseValue } from '@/data/checklist-data';
 
-const RESPONSE_OPTIONS: { value: ResponseValue; label: string; color: string; bg: string }[] = [
-  { value: 'yes', label: 'Yes', color: Colors.success, bg: Colors.successLight },
-  { value: 'no', label: 'No', color: Colors.danger, bg: Colors.dangerLight },
-  { value: 'check', label: 'Pass', color: Colors.success, bg: Colors.successLight },
-  { value: 'na', label: 'N/A', color: Colors.textSecondary, bg: Colors.surfaceSecondary },
+// Segmented answer bar — one tap, no card grid.
+const RESPONSE_OPTIONS: { value: ResponseValue; label: string }[] = [
+  { value: 'na', label: 'N/A' },
+  { value: 'check', label: 'Pass' },
+  { value: 'yes', label: 'Yes' },
+  { value: 'no', label: 'No' },
 ];
 
 export default function TaskDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const insets = useSafeAreaInsets();
-  const { getTaskState, getTaskDef, updateTask, completeTask, currentUser, users, currentProject } = useApp();
+  const { getTaskState, updateTask, completeTask, currentUser, currentProject } = useApp();
 
   const taskDef = useMemo(() => ALL_TASKS.find(t => t.uid === id), [id]);
   const taskState = getTaskState(id || '');
-  
+
+  // Prev / next within the same section, so the crew stays inside the checklist.
+  const siblings = useMemo(() => {
+    if (!taskDef) return [];
+    return ALL_TASKS.filter(t => t.sectionIndex === taskDef.sectionIndex);
+  }, [taskDef]);
+  const siblingIndex = useMemo(() => siblings.findIndex(t => t.uid === id), [siblings, id]);
+
   const projectMembers = useMemo(() => {
     if (!currentProject) return [''];
     return ['', ...currentProject.assignedMembers];
@@ -40,7 +48,6 @@ export default function TaskDetailScreen() {
   const [dueDate, setDueDate] = useState('');
   const [showAssignPicker, setShowAssignPicker] = useState(false);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
-  const [showAttachMenu, setShowAttachMenu] = useState(false);
   const [commentHistory, setCommentHistory] = useState<CommentAttachment[]>([]);
   const [newComment, setNewComment] = useState('');
   const [stagedAttachments, setStagedAttachments] = useState<Attachment[]>([]);
@@ -57,7 +64,7 @@ export default function TaskDetailScreen() {
       setAttachments(taskState.attachments || []);
       setCommentHistory(taskState.commentHistory || []);
     }
-  }, []);
+  }, [id]);
 
   if (!taskDef || !id) {
     return (
@@ -69,27 +76,23 @@ export default function TaskDetailScreen() {
 
   const isOverhaul = taskDef.type === 'overhaul';
   const isCompleted = taskState?.status === 'completed';
-
   const generateId = () => Date.now().toString() + Math.random().toString(36).substr(2, 9);
 
   const handleSave = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    updateTask(id, { 
-      actDuration, 
-      actLabor, 
-      comments, 
-      response, 
-      remarks, 
-      assignedTo, 
-      dueDate, 
-      attachments,
-      commentHistory 
-    });
+    updateTask(id, { actDuration, actLabor, comments, response, remarks, assignedTo, dueDate, attachments, commentHistory });
+  };
+
+  const goSibling = (delta: number) => {
+    const next = siblings[siblingIndex + delta];
+    if (!next) return;
+    handleSave();
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    router.replace({ pathname: '/task/[id]', params: { id: next.uid } });
   };
 
   const handleAddComment = () => {
     if (!newComment.trim() && stagedAttachments.length === 0) return;
-    
     const comment: CommentAttachment = {
       id: generateId(),
       text: newComment,
@@ -97,7 +100,6 @@ export default function TaskDetailScreen() {
       addedBy: currentUser?.username || 'Unknown',
       addedAt: new Date().toISOString(),
     };
-    
     const updatedHistory = [comment, ...commentHistory];
     setCommentHistory(updatedHistory);
     setNewComment('');
@@ -122,77 +124,48 @@ export default function TaskDetailScreen() {
   };
 
   const handleTakePhoto = async (isForComment: boolean = false) => {
-    setShowAttachMenu(false);
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
     if (status !== 'granted') {
       if (Platform.OS === 'web') alert('Camera permission is required.');
       else Alert.alert('Permission Required', 'Camera permission is needed to take photos.');
       return;
     }
-    const result = await ImagePicker.launchCameraAsync({
-      mediaTypes: ['images'],
-      quality: 0.7,
-      allowsEditing: true,
-    });
+    const result = await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 0.7, allowsEditing: true });
     if (!result.canceled && result.assets[0]) {
       const asset = result.assets[0];
-      const newAttachment: Attachment = {
-        id: generateId(),
-        uri: asset.uri,
-        name: asset.fileName || `Photo_${Date.now()}.jpg`,
-        type: 'photo',
-        mimeType: asset.mimeType || 'image/jpeg',
-        addedAt: new Date().toISOString(),
-      };
-      handleAttachmentResult(newAttachment, isForComment);
+      handleAttachmentResult({
+        id: generateId(), uri: asset.uri, name: asset.fileName || `Photo_${Date.now()}.jpg`,
+        type: 'photo', mimeType: asset.mimeType || 'image/jpeg', addedAt: new Date().toISOString(),
+      }, isForComment);
     }
   };
 
   const handlePickPhoto = async (isForComment: boolean = false) => {
-    setShowAttachMenu(false);
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
       if (Platform.OS === 'web') alert('Photo library permission is required.');
       else Alert.alert('Permission Required', 'Photo library access is needed.');
       return;
     }
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
-      quality: 0.7,
-      allowsMultipleSelection: false,
-    });
+    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.7, allowsMultipleSelection: false });
     if (!result.canceled && result.assets[0]) {
       const asset = result.assets[0];
-      const newAttachment: Attachment = {
-        id: generateId(),
-        uri: asset.uri,
-        name: asset.fileName || `Photo_${Date.now()}.jpg`,
-        type: 'photo',
-        mimeType: asset.mimeType || 'image/jpeg',
-        addedAt: new Date().toISOString(),
-      };
-      handleAttachmentResult(newAttachment, isForComment);
+      handleAttachmentResult({
+        id: generateId(), uri: asset.uri, name: asset.fileName || `Photo_${Date.now()}.jpg`,
+        type: 'photo', mimeType: asset.mimeType || 'image/jpeg', addedAt: new Date().toISOString(),
+      }, isForComment);
     }
   };
 
   const handleUploadFile = async (isForComment: boolean = false) => {
-    setShowAttachMenu(false);
     try {
-      const result = await DocumentPicker.getDocumentAsync({
-        type: '*/*',
-        copyToCacheDirectory: true,
-      });
+      const result = await DocumentPicker.getDocumentAsync({ type: '*/*', copyToCacheDirectory: true });
       if (!result.canceled && result.assets && result.assets[0]) {
         const asset = result.assets[0];
-        const newAttachment: Attachment = {
-          id: generateId(),
-          uri: asset.uri,
-          name: asset.name || `File_${Date.now()}`,
-          type: 'file',
-          mimeType: asset.mimeType || 'application/octet-stream',
-          addedAt: new Date().toISOString(),
-        };
-        handleAttachmentResult(newAttachment, isForComment);
+        handleAttachmentResult({
+          id: generateId(), uri: asset.uri, name: asset.name || `File_${Date.now()}`,
+          type: 'file', mimeType: asset.mimeType || 'application/octet-stream', addedAt: new Date().toISOString(),
+        }, isForComment);
       }
     } catch (e) {
       // user cancelled
@@ -225,9 +198,7 @@ export default function TaskDetailScreen() {
       )}
       <View style={styles.attachInfo}>
         <Text style={styles.attachName} numberOfLines={1}>{att.name}</Text>
-        <Text style={styles.attachDate}>
-          {new Date(att.addedAt).toLocaleDateString()}
-        </Text>
+        <Text style={styles.attachDate}>{new Date(att.addedAt).toLocaleDateString()}</Text>
       </View>
       {onRemove && (
         <Pressable onPress={() => onRemove(att.id)} hitSlop={8}>
@@ -271,136 +242,125 @@ export default function TaskDetailScreen() {
     updateTask(id, { status: 'pending', completedBy: '', completedAt: '' });
   };
 
+  const progress = siblings.length ? ((siblingIndex + 1) / siblings.length) * 100 : 0;
+
   return (
     <View style={[styles.screen, { paddingTop: Platform.OS === 'web' ? insets.top + 67 : insets.top }]}>
+      {/* Red command bar */}
       <View style={styles.navBar}>
-        <Pressable onPress={() => { handleSave(); router.back(); }} hitSlop={12}>
-          <Ionicons name="chevron-back" size={28} color={Colors.primary} />
+        <Pressable onPress={() => { handleSave(); router.back(); }} hitSlop={12} style={styles.navBtn}>
+          <Ionicons name="close" size={24} color="#FFF" />
         </Pressable>
-        <Text style={styles.navTitle} numberOfLines={1}>Task {id}</Text>
-        <View style={{ width: 28 }} />
+        <Text style={styles.navTitle} numberOfLines={1}>{taskDef.uid} · {taskDef.section}</Text>
+        <Pressable onPress={handleSave} hitSlop={12} style={styles.navBtn}>
+          <Text style={styles.navSave}>Save</Text>
+        </Pressable>
+      </View>
+      <View style={styles.progressTrack}>
+        <View style={[styles.progressFill, { width: `${progress}%` }]} />
       </View>
 
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + (Platform.OS === 'web' ? 34 : 20) }]}
-      >
-        <View style={styles.taskHeader}>
-          <View style={[styles.uidBadge, isCompleted && styles.uidBadgeCompleted]}>
-            <Text style={[styles.uidText, isCompleted && { color: '#FFF' }]}>{taskDef.uid}</Text>
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: insets.bottom + 24 }}>
+        {/* Grey bars carry the hierarchy */}
+        <View style={styles.sectionBar}>
+          <Text style={styles.sectionBarText}>{taskDef.section}</Text>
+        </View>
+        {!!taskDef.subsection && (
+          <View style={styles.subBar}>
+            <Text style={styles.subBarText}>{taskDef.subsection}</Text>
           </View>
-          <View style={styles.sectionBadge}>
-            <Text style={styles.sectionText}>{taskDef.section}</Text>
-          </View>
-          {taskDef.subsection && (
-            <View style={styles.sectionBadge}>
-              <Text style={styles.sectionText}>{taskDef.subsection}</Text>
+        )}
+
+        <View style={styles.body}>
+          <Text style={styles.taskName}>
+            {taskDef.uid} {taskDef.name}
+            {!isOverhaul ? <Text style={styles.required}> *</Text> : null}
+          </Text>
+          {!!taskDef.description && <Text style={styles.taskDescription}>{taskDef.description}</Text>}
+
+          {isCompleted && (
+            <View style={styles.completedBanner}>
+              <Ionicons name="checkmark-circle" size={18} color="#FFF" />
+              <Text style={styles.completedBannerText}>
+                Completed by {taskState?.completedBy}
+                {taskState?.completedAt ? ` · ${new Date(taskState.completedAt).toLocaleDateString()}` : ''}
+              </Text>
             </View>
           )}
-        </View>
 
-        <Text style={styles.taskName}>{taskDef.name}</Text>
-        {!!taskDef.description && <Text style={styles.taskDescription}>{taskDef.description}</Text>}
-        {!!taskDef.saisRef && (
-          <View style={styles.refRow}>
-            <Ionicons name="document-text-outline" size={14} color={Colors.primary} />
-            <Text style={styles.refText}>{taskDef.saisRef}</Text>
-          </View>
-        )}
+          {/* Answer — segmented, blue = selected */}
+          {!isOverhaul && (
+            <View style={styles.segmented}>
+              {RESPONSE_OPTIONS.map((opt, i) => {
+                const on = response === opt.value;
+                return (
+                  <Pressable
+                    key={opt.value}
+                    onPress={() => {
+                      if (isCompleted) return;
+                      Haptics.selectionAsync();
+                      setResponse(on ? '' : opt.value);
+                    }}
+                    style={[
+                      styles.segment,
+                      i < RESPONSE_OPTIONS.length - 1 && styles.segmentDivider,
+                      on && styles.segmentOn,
+                    ]}
+                  >
+                    <Text style={[styles.segmentText, on && styles.segmentTextOn]}>{opt.label}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          )}
 
-        {isCompleted && (
-          <View style={styles.completedBanner}>
-            <Ionicons name="checkmark-circle" size={20} color={Colors.success} />
-            <Text style={styles.completedBannerText}>
-              Completed by {taskState?.completedBy} on {taskState?.completedAt ? new Date(taskState.completedAt).toLocaleDateString() : ''}
-            </Text>
-          </View>
-        )}
-
-        {isOverhaul && (
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>Duration & Labor</Text>
-            <View style={styles.fieldRow}>
-              <View style={styles.fieldHalf}>
-                <Text style={styles.fieldLabel}>Est. Duration</Text>
-                <View style={styles.readonlyField}>
-                  <Text style={styles.readonlyText}>{taskDef.estDuration}h</Text>
+          {isOverhaul && (
+            <>
+              <View style={styles.estBox}>
+                <Text style={styles.estText}>Est {taskDef.estDuration}h · {taskDef.estLabor} labour</Text>
+              </View>
+              <View style={styles.fieldRow}>
+                <View style={styles.fieldHalf}>
+                  <Text style={styles.fieldLabel}>Actual duration (h)</Text>
+                  <TextInput
+                    style={styles.fieldInput}
+                    value={actDuration}
+                    onChangeText={setActDuration}
+                    placeholder="0"
+                    placeholderTextColor={Colors.textTertiary}
+                    keyboardType="decimal-pad"
+                    editable={!isCompleted}
+                  />
+                </View>
+                <View style={styles.fieldHalf}>
+                  <Text style={styles.fieldLabel}>Actual labour</Text>
+                  <TextInput
+                    style={styles.fieldInput}
+                    value={actLabor}
+                    onChangeText={setActLabor}
+                    placeholder="0"
+                    placeholderTextColor={Colors.textTertiary}
+                    keyboardType="number-pad"
+                    editable={!isCompleted}
+                  />
                 </View>
               </View>
-              <View style={styles.fieldHalf}>
-                <Text style={styles.fieldLabel}>Est. Labor</Text>
-                <View style={styles.readonlyField}>
-                  <Text style={styles.readonlyText}>{taskDef.estLabor}</Text>
-                </View>
-              </View>
-            </View>
-            <View style={styles.fieldRow}>
-              <View style={styles.fieldHalf}>
-                <Text style={styles.fieldLabel}>Actual Duration (h)</Text>
-                <TextInput
-                  style={styles.fieldInput}
-                  value={actDuration}
-                  onChangeText={setActDuration}
-                  placeholder="0"
-                  placeholderTextColor={Colors.textTertiary}
-                  keyboardType="decimal-pad"
-                  editable={!isCompleted}
-                />
-              </View>
-              <View style={styles.fieldHalf}>
-                <Text style={styles.fieldLabel}>Actual Labor</Text>
-                <TextInput
-                  style={styles.fieldInput}
-                  value={actLabor}
-                  onChangeText={setActLabor}
-                  placeholder="0"
-                  placeholderTextColor={Colors.textTertiary}
-                  keyboardType="number-pad"
-                  editable={!isCompleted}
-                />
-              </View>
-            </View>
-          </View>
-        )}
+            </>
+          )}
 
-        {!isOverhaul && (
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>Response</Text>
-            <View style={styles.responseGrid}>
-              {RESPONSE_OPTIONS.map(opt => (
-                <Pressable
-                  key={opt.value}
-                  onPress={() => {
-                    if (isCompleted) return;
-                    Haptics.selectionAsync();
-                    setResponse(response === opt.value ? '' : opt.value);
-                  }}
-                  style={[
-                    styles.responseOption,
-                    response === opt.value && { backgroundColor: opt.bg, borderColor: opt.color },
-                  ]}
-                >
-                  {response === opt.value && <Ionicons name="checkmark-circle" size={16} color={opt.color} />}
-                  <Text style={[styles.responseOptionText, response === opt.value && { color: opt.color, fontFamily: 'Inter_600SemiBold' }]}>
-                    {opt.label}
-                  </Text>
-                </Pressable>
-              ))}
+          {!!taskDef.saisRef && (
+            <View style={styles.refBox}>
+              <Text style={styles.refText}>{taskDef.saisRef}</Text>
             </View>
-          </View>
-        )}
+          )}
 
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Completion</Text>
-          <Text style={styles.fieldLabel}>Completed By</Text>
-          <Pressable
-            onPress={() => { if (!isCompleted) setShowAssignPicker(!showAssignPicker); }}
-            style={styles.pickerButton}
-          >
+          {/* Completed by */}
+          <Text style={styles.fieldLabel}>Completed by</Text>
+          <Pressable onPress={() => { if (!isCompleted) setShowAssignPicker(!showAssignPicker); }} style={styles.pickerButton}>
             <Text style={[styles.pickerText, !assignedTo && { color: Colors.textTertiary }]}>
               {assignedTo || 'Select team member'}
             </Text>
-            <Ionicons name="chevron-down" size={18} color={Colors.textTertiary} />
+            <Ionicons name="chevron-down" size={16} color={Colors.textTertiary} />
           </Pressable>
           {showAssignPicker && (
             <View style={styles.pickerDropdown}>
@@ -418,7 +378,7 @@ export default function TaskDetailScreen() {
             </View>
           )}
 
-          <Text style={[styles.fieldLabel, { marginTop: 12 }]}>Checked By</Text>
+          <Text style={[styles.fieldLabel, { marginTop: 14 }]}>Checked by</Text>
           <TextInput
             style={styles.fieldInput}
             value={dueDate}
@@ -427,87 +387,111 @@ export default function TaskDetailScreen() {
             placeholderTextColor={Colors.textTertiary}
             editable={!isCompleted}
           />
-        </View>
 
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Add New Comment & Attachments</Text>
+          <Text style={[styles.fieldLabel, { marginTop: 14 }]}>Remarks</Text>
           <TextInput
             style={[styles.fieldInput, styles.textArea]}
-            value={newComment}
-            onChangeText={setNewComment}
-            placeholder="Add a new comment..."
+            value={remarks}
+            onChangeText={setRemarks}
+            placeholder="Add a note for the SAIS report…"
             placeholderTextColor={Colors.textTertiary}
             multiline
             editable={!isCompleted}
           />
 
-          <View style={styles.attachSection}>
-            <View style={styles.attachHeader}>
-              <Text style={styles.attachLabel}>Staged Attachments</Text>
-              {!isCompleted && (
-                <Pressable onPress={() => showAttachOptions(true)} style={styles.attachAddBtn}>
-                  <Ionicons name="add-circle" size={22} color={Colors.primary} />
-                  <Text style={styles.attachAddText}>Add</Text>
-                </Pressable>
-              )}
+          {/* Attachments */}
+          <View style={styles.attachRow}>
+            <Pressable onPress={() => showAttachOptions(false)} style={styles.attachBtn} disabled={isCompleted}>
+              <Ionicons name="camera-outline" size={18} color={Colors.text} />
+              <Text style={styles.attachBtnText}>Photo</Text>
+            </Pressable>
+            <Pressable onPress={() => handleUploadFile(false)} style={styles.attachBtn} disabled={isCompleted}>
+              <Ionicons name="document-outline" size={18} color={Colors.text} />
+              <Text style={styles.attachBtnText}>File</Text>
+            </Pressable>
+          </View>
+          {attachments.length > 0 && (
+            <View style={styles.attachList}>{attachments.map(att => renderAttachment(att))}</View>
+          )}
+
+          {/* Comments */}
+          <Text style={[styles.fieldLabel, { marginTop: 18 }]}>Add comment</Text>
+          <TextInput
+            style={[styles.fieldInput, styles.textArea]}
+            value={newComment}
+            onChangeText={setNewComment}
+            placeholder="Add a new comment…"
+            placeholderTextColor={Colors.textTertiary}
+            multiline
+            editable={!isCompleted}
+          />
+          {stagedAttachments.length > 0 && (
+            <View style={styles.attachList}>
+              {stagedAttachments.map(att => renderAttachment(att, handleRemoveStagedAttachment))}
             </View>
-
-            {stagedAttachments.length > 0 && (
-              <View style={styles.attachList}>
-                {stagedAttachments.map(att => renderAttachment(att, handleRemoveStagedAttachment))}
-              </View>
-            )}
-
+          )}
+          <View style={styles.attachRow}>
+            <Pressable onPress={() => showAttachOptions(true)} style={styles.attachBtn} disabled={isCompleted}>
+              <Ionicons name="attach" size={18} color={Colors.text} />
+              <Text style={styles.attachBtnText}>Attach</Text>
+            </Pressable>
             <Pressable
               onPress={handleAddComment}
               disabled={!newComment.trim() && stagedAttachments.length === 0}
-              style={[
-                styles.addCommentBtn,
-                (!newComment.trim() && stagedAttachments.length === 0) && { opacity: 0.5 }
-              ]}
+              style={[styles.postBtn, (!newComment.trim() && stagedAttachments.length === 0) && { opacity: 0.5 }]}
             >
-              <Text style={styles.addCommentBtnText}>Post Comment</Text>
+              <Text style={styles.postBtnText}>Post</Text>
+            </Pressable>
+          </View>
+
+          {commentHistory.length > 0 && (
+            <View style={{ marginTop: 18 }}>
+              <Text style={styles.fieldLabel}>Comment history</Text>
+              {commentHistory.map(comment => (
+                <View key={comment.id} style={styles.commentItem}>
+                  <View style={styles.commentMeta}>
+                    <Text style={styles.commentAuthor}>{comment.addedBy}</Text>
+                    <Text style={styles.commentDate}>{new Date(comment.addedAt).toLocaleString()}</Text>
+                  </View>
+                  {!!comment.text && <Text style={styles.commentText}>{comment.text}</Text>}
+                  {comment.attachments.length > 0 && (
+                    <View style={styles.commentAttachments}>
+                      {comment.attachments.map(att => renderAttachment(att))}
+                    </View>
+                  )}
+                </View>
+              ))}
+            </View>
+          )}
+
+          {/* Complete + pager */}
+          {!isCompleted ? (
+            <Pressable onPress={handleComplete} style={({ pressed }) => [styles.completeButton, pressed && { opacity: 0.85 }]}>
+              <Text style={styles.completeButtonText}>Mark complete</Text>
+            </Pressable>
+          ) : (
+            <Pressable onPress={handleUncomplete} style={({ pressed }) => [styles.reopenButton, pressed && { opacity: 0.85 }]}>
+              <Text style={styles.reopenButtonText}>Reopen task</Text>
+            </Pressable>
+          )}
+
+          <View style={styles.pagerRow}>
+            <Pressable
+              onPress={() => goSibling(-1)}
+              disabled={siblingIndex <= 0}
+              style={({ pressed }) => [styles.pagerBtn, pressed && { backgroundColor: Colors.borderStrong }, siblingIndex <= 0 && { opacity: 0.4 }]}
+            >
+              <Ionicons name="chevron-back" size={34} color={Colors.text} />
+            </Pressable>
+            <Pressable
+              onPress={() => goSibling(1)}
+              disabled={siblingIndex >= siblings.length - 1}
+              style={({ pressed }) => [styles.pagerBtn, pressed && { backgroundColor: Colors.borderStrong }, siblingIndex >= siblings.length - 1 && { opacity: 0.4 }]}
+            >
+              <Ionicons name="chevron-forward" size={34} color={Colors.text} />
             </Pressable>
           </View>
         </View>
-
-        {commentHistory.length > 0 && (
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>Comment History</Text>
-            {commentHistory.map((comment) => (
-              <View key={comment.id} style={styles.commentItem}>
-                <View style={styles.commentMeta}>
-                  <Text style={styles.commentAuthor}>{comment.addedBy}</Text>
-                  <Text style={styles.commentDate}>{new Date(comment.addedAt).toLocaleString()}</Text>
-                </View>
-                {!!comment.text && <Text style={styles.commentText}>{comment.text}</Text>}
-                {comment.attachments.length > 0 && (
-                  <View style={styles.commentAttachments}>
-                    {comment.attachments.map(att => renderAttachment(att))}
-                  </View>
-                )}
-              </View>
-            ))}
-          </View>
-        )}
-
-        {!isCompleted ? (
-          <Pressable
-            onPress={handleComplete}
-            style={({ pressed }) => [styles.completeButton, pressed && { opacity: 0.85, transform: [{ scale: 0.98 }] }]}
-          >
-            <Ionicons name="checkmark-circle" size={22} color="#FFF" />
-            <Text style={styles.completeButtonText}>Mark Complete</Text>
-          </Pressable>
-        ) : (
-          <Pressable
-            onPress={handleUncomplete}
-            style={({ pressed }) => [styles.reopenButton, pressed && { opacity: 0.85 }]}
-          >
-            <Ionicons name="arrow-undo" size={20} color={Colors.accent} />
-            <Text style={styles.reopenButtonText}>Reopen Task</Text>
-          </Pressable>
-        )}
       </ScrollView>
     </View>
   );
@@ -515,67 +499,127 @@ export default function TaskDetailScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: Colors.background },
-  navBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: Colors.borderLight, backgroundColor: Colors.surface },
-  navTitle: { fontSize: 17, fontFamily: 'Inter_600SemiBold', color: Colors.text, flex: 1, textAlign: 'center' as const, marginHorizontal: 8 },
-  content: { padding: 20, gap: 16 },
   errorText: { fontSize: 16, fontFamily: 'Inter_500Medium', color: Colors.danger, textAlign: 'center', marginTop: 40 },
-  taskHeader: { flexDirection: 'row', flexWrap: 'wrap' as const, gap: 8 },
-  uidBadge: { backgroundColor: Colors.primaryLight, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 6 },
-  uidBadgeCompleted: { backgroundColor: Colors.success },
-  uidText: { fontSize: 14, fontFamily: 'Inter_700Bold', color: Colors.primary },
-  sectionBadge: { backgroundColor: Colors.surfaceSecondary, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6 },
-  sectionText: { fontSize: 12, fontFamily: 'Inter_500Medium', color: Colors.textSecondary },
-  taskName: { fontSize: 20, fontFamily: 'Inter_700Bold', color: Colors.text, lineHeight: 26 },
-  taskDescription: { fontSize: 14, fontFamily: 'Inter_400Regular', color: Colors.textSecondary, lineHeight: 20 },
-  refRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  refText: { fontSize: 13, fontFamily: 'Inter_500Medium', color: Colors.primary },
-  completedBanner: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: Colors.successLight, borderRadius: 12, padding: 12 },
-  completedBannerText: { fontSize: 13, fontFamily: 'Inter_500Medium', color: Colors.success, flex: 1 },
-  card: { backgroundColor: Colors.surface, borderRadius: 16, padding: 16, gap: 10, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.03, shadowRadius: 4, elevation: 1 },
-  cardTitle: { fontSize: 16, fontFamily: 'Inter_600SemiBold', color: Colors.text, marginBottom: 4 },
-  fieldRow: { flexDirection: 'row', gap: 12 },
-  fieldHalf: { flex: 1, gap: 6 },
-  fieldLabel: { fontSize: 12, fontFamily: 'Inter_500Medium', color: Colors.textSecondary, textTransform: 'uppercase' as const, letterSpacing: 0.3 },
-  readonlyField: { backgroundColor: Colors.surfaceSecondary, borderRadius: 10, paddingHorizontal: 14, height: 44, justifyContent: 'center' as const },
-  readonlyText: { fontSize: 15, fontFamily: 'Inter_600SemiBold', color: Colors.text },
-  fieldInput: { backgroundColor: Colors.background, borderRadius: 10, paddingHorizontal: 14, height: 44, fontSize: 15, fontFamily: 'Inter_400Regular', color: Colors.text, borderWidth: 1, borderColor: Colors.borderLight },
-  textArea: { height: 80, paddingTop: 12, textAlignVertical: 'top' as const },
-  responseGrid: { flexDirection: 'row', flexWrap: 'wrap' as const, gap: 8 },
-  responseOption: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    borderWidth: 1.5, borderColor: Colors.borderLight, borderRadius: 10,
-    paddingHorizontal: 14, paddingVertical: 10,
+
+  navBar: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    backgroundColor: Colors.primary, paddingHorizontal: 14, height: 54,
   },
-  responseOptionText: { fontSize: 13, fontFamily: 'Inter_500Medium', color: Colors.text },
-  pickerButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: Colors.background, borderRadius: 10, paddingHorizontal: 14, height: 44, borderWidth: 1, borderColor: Colors.borderLight },
+  navBtn: { minWidth: 46, alignItems: 'center', justifyContent: 'center', height: 44 },
+  navTitle: { flex: 1, fontSize: 15, fontFamily: 'Inter_600SemiBold', color: '#FFF', textAlign: 'center' as const },
+  navSave: { fontSize: 15, fontFamily: 'Inter_700Bold', color: '#FFF' },
+  progressTrack: { height: 6, backgroundColor: Colors.danger },
+  progressFill: { height: 6, backgroundColor: Colors.selected },
+
+  sectionBar: { backgroundColor: Colors.sectionBar, paddingHorizontal: 16, paddingVertical: 11 },
+  sectionBarText: { fontSize: 14.5, fontFamily: 'Inter_700Bold', color: Colors.text },
+  subBar: {
+    backgroundColor: Colors.subBar, paddingHorizontal: 16, paddingVertical: 8,
+    borderBottomWidth: 1, borderBottomColor: Colors.border,
+  },
+  subBarText: { fontSize: 13, fontFamily: 'Inter_600SemiBold', color: Colors.textSecondary },
+
+  body: { padding: 16, gap: 4 },
+  taskName: { fontSize: 17, fontFamily: 'Inter_700Bold', color: Colors.text, lineHeight: 24 },
+  required: { color: Colors.primary },
+  taskDescription: { fontSize: 14.5, fontFamily: 'Inter_400Regular', color: Colors.textSecondary, lineHeight: 21, marginTop: 6 },
+
+  completedBanner: {
+    flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 14,
+    backgroundColor: Colors.success, borderRadius: 3, paddingHorizontal: 12, paddingVertical: 10,
+  },
+  completedBannerText: { flex: 1, fontSize: 13, fontFamily: 'Inter_600SemiBold', color: '#FFF' },
+
+  segmented: {
+    flexDirection: 'row', alignSelf: 'flex-start' as const, marginTop: 16,
+    borderWidth: 1, borderColor: Colors.borderStrong, borderRadius: 3, overflow: 'hidden' as const,
+  },
+  segment: { minWidth: 62, paddingHorizontal: 14, paddingVertical: 12, alignItems: 'center', backgroundColor: Colors.subBar },
+  segmentDivider: { borderRightWidth: 1, borderRightColor: Colors.borderStrong },
+  segmentOn: { backgroundColor: Colors.selected },
+  segmentText: { fontSize: 15, fontFamily: 'Inter_600SemiBold', color: Colors.text },
+  segmentTextOn: { color: '#FFF', fontFamily: 'Inter_700Bold' },
+
+  estBox: {
+    marginTop: 16, backgroundColor: Colors.field, borderWidth: 1.5, borderColor: Colors.primary,
+    borderRadius: 2, paddingHorizontal: 12, paddingVertical: 10, alignSelf: 'flex-start' as const,
+  },
+  estText: { fontSize: 13, fontFamily: 'Inter_700Bold', color: Colors.text },
+
+  refBox: {
+    marginTop: 18, backgroundColor: Colors.field, borderWidth: 1.5, borderColor: Colors.primary,
+    borderRadius: 2, paddingHorizontal: 12, paddingVertical: 10,
+  },
+  refText: { fontSize: 13, fontFamily: 'Inter_700Bold', color: Colors.text },
+
+  fieldRow: { flexDirection: 'row', gap: 12, marginTop: 14 },
+  fieldHalf: { flex: 1, gap: 6 },
+  fieldLabel: {
+    fontSize: 11, fontFamily: 'Inter_700Bold', color: Colors.textTertiary,
+    textTransform: 'uppercase' as const, letterSpacing: 0.7, marginTop: 18, marginBottom: 6,
+  },
+  fieldInput: {
+    backgroundColor: Colors.field, borderRadius: 3, paddingHorizontal: 13, height: 46,
+    fontSize: 15, fontFamily: 'Inter_400Regular', color: Colors.text,
+    borderWidth: 1, borderColor: Colors.borderStrong,
+  },
+  textArea: { height: 84, paddingTop: 12, textAlignVertical: 'top' as const },
+
+  pickerButton: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    backgroundColor: Colors.field, borderRadius: 3, paddingHorizontal: 13, height: 46,
+    borderWidth: 1, borderColor: Colors.borderStrong,
+  },
   pickerText: { fontSize: 15, fontFamily: 'Inter_400Regular', color: Colors.text },
-  pickerDropdown: { backgroundColor: Colors.surface, borderRadius: 10, borderWidth: 1, borderColor: Colors.borderLight, overflow: 'hidden' as const, marginTop: 4 },
-  pickerItem: { paddingHorizontal: 14, paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: Colors.borderLight },
+  pickerDropdown: {
+    backgroundColor: Colors.field, borderRadius: 3, borderWidth: 1, borderColor: Colors.borderStrong,
+    overflow: 'hidden' as const, marginTop: 4,
+  },
+  pickerItem: { paddingHorizontal: 13, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: Colors.borderLight },
   pickerItemActive: { backgroundColor: Colors.primaryLight },
   pickerItemText: { fontSize: 14, fontFamily: 'Inter_500Medium', color: Colors.text },
-  completeButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: Colors.success, borderRadius: 14, height: 52, marginTop: 4 },
-  completeButtonText: { fontSize: 16, fontFamily: 'Inter_600SemiBold', color: '#FFF' },
-  reopenButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: Colors.surface, borderRadius: 14, height: 52, borderWidth: 1, borderColor: Colors.accent, marginTop: 4 },
-  reopenButtonText: { fontSize: 15, fontFamily: 'Inter_600SemiBold', color: Colors.accent },
-  attachSection: { gap: 10 },
-  attachHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  attachLabel: { fontSize: 13, fontFamily: 'Inter_600SemiBold', color: Colors.textSecondary },
-  attachAddBtn: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  attachAddText: { fontSize: 14, fontFamily: 'Inter_600SemiBold', color: Colors.primary },
-  attachList: { gap: 8 },
-  attachItem: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: Colors.background, padding: 8, borderRadius: 10, borderWidth: 1, borderColor: Colors.borderLight },
-  attachThumb: { width: 40, height: 40, borderRadius: 6 },
-  attachFileIcon: { width: 40, height: 40, borderRadius: 6, backgroundColor: Colors.primaryLight, alignItems: 'center', justifyContent: 'center' },
+
+  attachRow: { flexDirection: 'row', gap: 10, marginTop: 16 },
+  attachBtn: {
+    flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    height: 46, backgroundColor: Colors.field, borderWidth: 1, borderColor: Colors.borderStrong, borderRadius: 3,
+  },
+  attachBtnText: { fontSize: 14, fontFamily: 'Inter_600SemiBold', color: Colors.text },
+  postBtn: { flex: 1, height: 46, backgroundColor: Colors.primary, borderRadius: 3, alignItems: 'center', justifyContent: 'center' },
+  postBtnText: { fontSize: 14, fontFamily: 'Inter_700Bold', color: '#FFF' },
+  attachList: { gap: 8, marginTop: 12 },
+  attachItem: {
+    flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: Colors.field,
+    padding: 8, borderRadius: 3, borderWidth: 1, borderColor: Colors.borderStrong,
+  },
+  attachThumb: { width: 44, height: 44, borderRadius: 2 },
+  attachFileIcon: { width: 44, height: 44, borderRadius: 2, backgroundColor: Colors.primaryLight, alignItems: 'center', justifyContent: 'center' },
   attachInfo: { flex: 1 },
-  attachName: { fontSize: 13, fontFamily: 'Inter_500Medium', color: Colors.text },
+  attachName: { fontSize: 13, fontFamily: 'Inter_600SemiBold', color: Colors.text },
   attachDate: { fontSize: 11, fontFamily: 'Inter_400Regular', color: Colors.textTertiary },
-  attachEmpty: { fontSize: 13, fontFamily: 'Inter_400Regular', color: Colors.textTertiary, fontStyle: 'italic' as const },
-  addCommentBtn: { backgroundColor: Colors.primary, height: 44, borderRadius: 10, alignItems: 'center', justifyContent: 'center', marginTop: 8 },
-  addCommentBtnText: { color: '#FFF', fontSize: 14, fontFamily: 'Inter_600SemiBold' },
-  commentItem: { paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: Colors.borderLight },
+
+  commentItem: { paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: Colors.borderLight },
   commentMeta: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 },
   commentAuthor: { fontSize: 13, fontFamily: 'Inter_700Bold', color: Colors.text },
   commentDate: { fontSize: 11, fontFamily: 'Inter_400Regular', color: Colors.textTertiary },
   commentText: { fontSize: 14, fontFamily: 'Inter_400Regular', color: Colors.text, marginBottom: 8 },
   commentAttachments: { marginTop: 4, gap: 8 },
+
+  completeButton: {
+    marginTop: 24, height: 52, borderRadius: 3, backgroundColor: Colors.success,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  completeButtonText: { fontSize: 15.5, fontFamily: 'Inter_700Bold', color: '#FFF', letterSpacing: 0.3 },
+  reopenButton: {
+    marginTop: 24, height: 52, borderRadius: 3, backgroundColor: Colors.field,
+    borderWidth: 1, borderColor: Colors.primary, alignItems: 'center', justifyContent: 'center',
+  },
+  reopenButtonText: { fontSize: 15.5, fontFamily: 'Inter_700Bold', color: Colors.primary },
+
+  pagerRow: { flexDirection: 'row', gap: 12, marginTop: 14, marginBottom: 8 },
+  pagerBtn: {
+    flex: 1, height: 56, backgroundColor: Colors.surfaceSecondary,
+    borderWidth: 1, borderColor: Colors.borderStrong, borderRadius: 3,
+    alignItems: 'center', justifyContent: 'center',
+  },
 });
