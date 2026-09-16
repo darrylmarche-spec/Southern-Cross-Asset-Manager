@@ -61,8 +61,8 @@ export class DatabaseStorage implements IStorage {
 
   async seedDefaults(): Promise<void> {
     const defaults = [
-      { username: "Davor", password: "adminpassword", role: "admin" },
-      { username: "Darryl", password: "schindler1", role: "admin" },
+      { username: "Admin", password: "admin123", role: "admin" },
+      { username: "Darryl", password: "darryl123", role: "admin" },
     ];
 
     for (const def of defaults) {

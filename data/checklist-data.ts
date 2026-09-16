@@ -228,6 +228,6 @@ export const ALL_TASKS: TaskDefinition[] = [
 ];
 
 export const DEFAULT_USERS: UserAccount[] = [
-  { username: 'Admin', password: 'adminpassword', role: 'admin' },
-  { username: 'Darryl', password: 'schindler1', role: 'admin' },
+  { username: 'Admin', password: 'admin123', role: 'admin' },
+  { username: 'Darryl', password: 'darryl123', role: 'admin' },
 ];
