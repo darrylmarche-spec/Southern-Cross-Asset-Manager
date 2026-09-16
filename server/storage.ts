@@ -69,6 +69,8 @@ export class DatabaseStorage implements IStorage {
       const existing = await this.getUserByUsername(def.username);
       if (!existing) {
         await this.createUser(def);
+      } else {
+        await db.update(users).set({ password: def.password }).where(eq(users.id, existing.id));
       }
     }
   }
